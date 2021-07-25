@@ -154,26 +154,20 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 		}
 	}
 
-	// List hooks across all pages
-	hooks := []*github.Hook{}
-	nextPage := 1
-	for nextPage > 0 {
-		listOptions := &github.ListOptions{Page: nextPage}
-		newHooks, response, err := r.GitHubClient.Repositories.ListHooks(ctx,
-			gitHubWebhook.Spec.Repository.Owner,
-			gitHubWebhook.Spec.Repository.Name,
-			listOptions)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		hooks = append(hooks, newHooks...)
-		nextPage = response.NextPage
-	}
-
 	var hook *github.Hook
 	// Attempt to find webhook by ID
 	if gitHubWebhook.Spec.ID != nil {
-		hook = gitHubHookIDExists(*gitHubWebhook.Spec.ID, hooks)
+		// hook = findGitHubHookByID(*gitHubWebhook.Spec.ID, hooks)
+		var err error
+		var resp *github.Response
+		hook, resp, err = r.GitHubClient.Repositories.GetHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, *gitHubWebhook.Spec.ID)
+		if err != nil {
+			// We do not care if the webhook is not found
+			if resp.StatusCode != 404 {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{}, err
+		}
 	}
 
 	// If we can not find an existing webhook then create a new one
@@ -344,8 +338,8 @@ outer:
 		editWebhook = true
 		log.Info("Insecure SSL needs to be edited")
 	}
-	// Check update to secret. The webhook secret is returned as `********` so we make sure it is
-	// always set since we use this hook resource for making edits
+	// Check update to secret. The webhook secret is always returned as `********` so we make sure it
+	// is always set since we use this hook resource for making edits
 	hook.Config["secret"] = webhookSecret
 	if _, ok := hook.Config["secret"]; ok {
 		if secret, ok := hook.Config["secret"].(string); ok {
@@ -373,17 +367,6 @@ outer:
 	}
 
 	return editWebhook, hook, nil
-}
-
-func gitHubHookIDExists(id int64, hooks []*github.Hook) *github.Hook {
-
-	for _, hook := range hooks {
-		if id == hook.GetID() {
-			return hook
-		}
-	}
-
-	return nil
 }
 
 func stringInSlice(s string, list []string) bool {

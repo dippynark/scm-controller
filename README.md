@@ -28,5 +28,6 @@ an error if there is a collision.
 
 ## TODO
 
-- Do not allow adoption at all (e.g. two similar webhooks could then compete). Instead, error if
-  webhook of same spec exists
+- Add conditions (e.g. readiness) and add as columns
+- Raise detailed event if a matching webhook already exists (and other similar errors)
+- If ID is set there is no need to list all hooks, just get the specified one by ID
