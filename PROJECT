@@ -1,0 +1,16 @@
+domain: dippynark.co.uk
+layout:
+- go.kubebuilder.io/v3
+projectName: scm-controller
+repo: github.com/dippynark/scm-controller
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: dippynark.co.uk
+  group: scm
+  kind: GitHubWebhook
+  path: github.com/dippynark/scm-controller/api/v1alpha1
+  version: v1alpha1
+version: "3"

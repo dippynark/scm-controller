@@ -1,0 +1,24 @@
+# permissions for end users to edit githubwebhooks.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: githubwebhook-editor-role
+rules:
+- apiGroups:
+  - scm.dippynark.co.uk
+  resources:
+  - githubwebhooks
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - scm.dippynark.co.uk
+  resources:
+  - githubwebhooks/status
+  verbs:
+  - get

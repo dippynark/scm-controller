@@ -1,0 +1,13 @@
+apiVersion: scm.dippynark.co.uk/v1alpha1
+kind: GitHubWebhook
+metadata:
+  name: githubwebhook-sample
+spec:
+  active: true
+  repository:
+    owner: dippynark
+    name: kfmt
+  config:
+    url: https://test2.lukeaddison.co.uk
+    contentType: application/json"
+    insecureSSL: false

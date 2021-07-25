@@ -1,0 +1,20 @@
+# permissions for end users to view githubwebhooks.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: githubwebhook-viewer-role
+rules:
+- apiGroups:
+  - scm.dippynark.co.uk
+  resources:
+  - githubwebhooks
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - scm.dippynark.co.uk
+  resources:
+  - githubwebhooks/status
+  verbs:
+  - get
