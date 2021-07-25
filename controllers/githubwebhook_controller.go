@@ -101,12 +101,15 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
 
 	if gitHubWebhook.Spec.ID != nil {
-		_, err := r.GitHubClient.Repositories.DeleteHook(ctx,
+		r, err := r.GitHubClient.Repositories.DeleteHook(ctx,
 			gitHubWebhook.Spec.Repository.Owner,
 			gitHubWebhook.Spec.Repository.Name,
 			*gitHubWebhook.Spec.ID)
 		if err != nil {
-			return ctrl.Result{}, err
+			// We do not care if the webhook is not found
+			if r.StatusCode != 404 {
+				return ctrl.Result{}, err
+			}
 		}
 		log.Info("GitHub webhook successfully deleted!")
 	}
