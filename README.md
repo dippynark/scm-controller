@@ -1,5 +1,7 @@
 # scm-controller
 
+Need access token with `admin:repo_hook`.
+
 ```sh
 kubebuilder init --domain dippynark.co.uk # --repo github.com/dippynark/scm-controller
 kubebuilder create api --group scm --version v1alpha1 --kind GitHubWebhook

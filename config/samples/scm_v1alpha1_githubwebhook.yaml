@@ -1,17 +1,24 @@
 apiVersion: scm.dippynark.co.uk/v1alpha1
 kind: GitHubWebhook
 metadata:
-  name: githubwebhook-sample
+  name: test
 spec:
   repository:
     owner: dippynark
     name: kfmt
-  payloadURL: https://test2.lukeaddison.co.uk
+  payloadURL: https://test.lukeaddison.co.uk
   contentType: application/json
   secret:
-    name: github
-    key: token
+    name: github-webhook
+    key: secret
   insecureSSL: false
   events:
   - "*"
   active: true
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-webhook
+stringData:
+  secret: test
