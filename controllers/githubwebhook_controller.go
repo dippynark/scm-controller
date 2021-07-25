@@ -20,29 +20,29 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/go-github/v31/github"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/source"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/dippynark/scm-controller/api/v1alpha1"
 	scmv1alpha1 "github.com/dippynark/scm-controller/api/v1alpha1"
 )
 
 const (
-	namespaceLogName     = "namespace"
-	gitHubWebhookLogName = "githubwebhook"
+	namespaceLogName           = "namespace"
+	gitHubWebhookLogName       = "githubwebhook"
+	gitHubWebhookRequeuePeriod = time.Minute
 )
 
 // GitHubWebhookReconciler reconciles a GitHubWebhook object
@@ -116,10 +116,6 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 
 	// Add finalizer
 	controllerutil.AddFinalizer(gitHubWebhook, v1alpha1.GitHubWebhookFinalizer)
-
-	// Add foregroundDeletion finalizer
-	// https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/#controlling-how-the-garbage-collector-deletes-dependents
-	controllerutil.AddFinalizer(gitHubWebhook, metav1.FinalizerDeleteDependents)
 
 	// Retrieve webhook secret
 	webhookSecret := ""
@@ -213,6 +209,11 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 		}
 		// TODO: return hook and check values have actually changed
 		log.Info("GitHub webhook successfully edited!")
+	}
+
+	if gitHubWebhook.Spec.Secret != nil {
+		// We reconcile regularly if a secret is referenced to ensure external drift is reconciled
+		return reconcile.Result{RequeueAfter: gitHubWebhookRequeuePeriod}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -391,9 +392,5 @@ func boolToInt(b bool) int {
 func (r *GitHubWebhookReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&scmv1alpha1.GitHubWebhook{}).
-		Watches(
-			&source.Kind{Type: &corev1.Secret{}},
-			&handler.EnqueueRequestForObject{},
-		).
 		Complete(r)
 }
