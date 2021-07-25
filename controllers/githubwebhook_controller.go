@@ -30,6 +30,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,12 +53,14 @@ type GitHubWebhookReconciler struct {
 	client.Client
 	Scheme       *runtime.Scheme
 	GitHubClient *github.Client
+	Recorder     record.EventRecorder
 }
 
 //+kubebuilder:rbac:groups=scm.dippynark.co.uk,resources=githubwebhooks,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=scm.dippynark.co.uk,resources=githubwebhooks/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=scm.dippynark.co.uk,resources=githubwebhooks/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch
+// +kubebuilder:rbac:groups="",resources=events,verbs=create;patch
 
 // Reconcile GitHubWebhook
 func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Request) (_ ctrl.Result, rerr error) {
@@ -108,6 +111,7 @@ func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.
 		if err != nil {
 			// We do not care if the webhook is not found
 			if resp.StatusCode != 404 {
+				r.Recorder.Event(gitHubWebhook, "Warning", "DeleteFailed", err.Error())
 				return ctrl.Result{}, err
 			}
 		}
@@ -197,8 +201,10 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 					err = errors.Errorf("%s: %s", err, responseError.Message)
 				}
 			}
+			r.Recorder.Event(gitHubWebhook, "Warning", "CreateFailed", err.Error())
 			return ctrl.Result{}, err
 		}
+		r.Recorder.Event(gitHubWebhook, "Normal", "Create", "Webhook created")
 
 		// Set status immediately to prevent editing newly created webhooks
 
@@ -233,11 +239,13 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 		var err error
 		hook, _, err = r.GitHubClient.Repositories.EditHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, *gitHubWebhook.Spec.ID, hook)
 		if err != nil {
+			r.Recorder.Event(gitHubWebhook, "Warning", "EditFailed", err.Error())
 			return ctrl.Result{}, err
 		}
 		updatedAt := v1.NewTime(hook.GetUpdatedAt())
 		gitHubWebhook.Status.LastObserveredUpdateTime = &updatedAt
 		// TODO: return hook and check values have actually changed
+		r.Recorder.Event(gitHubWebhook, "Normal", "Edit", "Webhook edited")
 		log.Info("GitHub webhook successfully edited!")
 	}
 
