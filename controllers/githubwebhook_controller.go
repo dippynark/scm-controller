@@ -101,13 +101,13 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
 
 	if gitHubWebhook.Spec.ID != nil {
-		r, err := r.GitHubClient.Repositories.DeleteHook(ctx,
+		resp, err := r.GitHubClient.Repositories.DeleteHook(ctx,
 			gitHubWebhook.Spec.Repository.Owner,
 			gitHubWebhook.Spec.Repository.Name,
 			*gitHubWebhook.Spec.ID)
 		if err != nil {
 			// We do not care if the webhook is not found
-			if r.StatusCode != 404 {
+			if resp.StatusCode != 404 {
 				return ctrl.Result{}, err
 			}
 		}
@@ -157,7 +157,6 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 	var hook *github.Hook
 	// Attempt to find webhook by ID
 	if gitHubWebhook.Spec.ID != nil {
-		// hook = findGitHubHookByID(*gitHubWebhook.Spec.ID, hooks)
 		var err error
 		var resp *github.Response
 		hook, resp, err = r.GitHubClient.Repositories.GetHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, *gitHubWebhook.Spec.ID)
@@ -166,7 +165,6 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 			if resp.StatusCode != 404 {
 				return ctrl.Result{}, err
 			}
-			return ctrl.Result{}, err
 		}
 	}
 
