@@ -207,6 +207,17 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 			}
 			return ctrl.Result{}, err
 		}
+
+		// Set status immediately to prevent editing newly created webhooks
+
+		// Set last update time
+		createdAt := v1.NewTime(hook.GetCreatedAt())
+		gitHubWebhook.Status.LastObserveredUpdateTime = &createdAt
+		// Set webhook secret hash
+		sum := sha256.Sum256([]byte(webhookSecret))
+		webhookSecretHash := fmt.Sprintf("%x", sum)
+		gitHubWebhook.Status.LastObservedSecretHash = &webhookSecretHash
+
 		log.Info("GitHub webhook successfully created!")
 	}
 
@@ -339,14 +350,14 @@ outer:
 	if _, ok := hook.Config["secret"]; ok {
 		if secret, ok := hook.Config["secret"].(string); ok {
 			// We do a length 0 comparison, a local hash comparison and check whether the external webhook
-			// has been updated. Note that if a last observed update time has not been recorded yet, we
-			// only trigger an update if the create and update times differ
+			// has been updated. Note that if the last observed update time and secret hash have not been
+			// recorded yet, we only trigger an update if the create and update times differ
 			if (len(webhookSecret) == 0 && len(secret) > 0) ||
 				(len(secret) == 0 && len(webhookSecret) > 0) ||
-				(gitHubWebhook.Status.LastObserveredUpdateTime == nil &&
-					!hook.GetCreatedAt().Equal(hook.GetUpdatedAt())) ||
+				gitHubWebhook.Status.LastObserveredUpdateTime == nil ||
 				(gitHubWebhook.Status.LastObserveredUpdateTime != nil &&
 					gitHubWebhook.Status.LastObserveredUpdateTime.Before(&updatedAt)) ||
+				gitHubWebhook.Status.LastObservedSecretHash == nil ||
 				(gitHubWebhook.Status.LastObservedSecretHash != nil &&
 					*gitHubWebhook.Status.LastObservedSecretHash != webhookSecretHash) {
 				editWebhook = true
