@@ -119,11 +119,11 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			Active: newTrue(),
 			Events: events,
 			Config: map[string]interface{}{
-				"url":          gitHubWebhook.Spec.Config.URL,
-				"content_type": gitHubWebhook.Spec.Config.ContentType,
+				"url":          gitHubWebhook.Spec.PayloadURL,
+				"content_type": gitHubWebhook.Spec.ContentType,
 				// TODO: implement secret
 				// "secret":       secret,
-				"insecure_ssl": boolToInt(gitHubWebhook.Spec.Config.InsecureSSL),
+				"insecure_ssl": boolToInt(gitHubWebhook.Spec.InsecureSSL),
 			},
 		}
 		hook, _, err = client.Repositories.CreateHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, hook)
@@ -162,43 +162,43 @@ outer:
 	// Check update to URL
 	if _, ok := hook.Config["url"]; ok {
 		if url, ok := hook.Config["url"].(string); ok {
-			if gitHubWebhook.Spec.Config.URL != url {
-				hook.Config["url"] = gitHubWebhook.Spec.Config.URL
+			if gitHubWebhook.Spec.PayloadURL != url {
+				hook.Config["url"] = gitHubWebhook.Spec.PayloadURL
 				editWebhook = true
 			}
 		} else {
 			return ctrl.Result{}, errors.New("failed to type cast URL parameter")
 		}
 	} else {
-		hook.Config["url"] = gitHubWebhook.Spec.Config.URL
+		hook.Config["url"] = gitHubWebhook.Spec.PayloadURL
 		editWebhook = true
 	}
 	// Check update to content type
 	if _, ok := hook.Config["content_type"]; ok {
 		if contentType, ok := hook.Config["content_type"].(string); ok {
-			if gitHubWebhook.Spec.Config.ContentType != contentType {
-				hook.Config["content_type"] = gitHubWebhook.Spec.Config.ContentType
+			if gitHubWebhook.Spec.ContentType != contentType {
+				hook.Config["content_type"] = gitHubWebhook.Spec.ContentType
 				editWebhook = true
 			}
 		} else {
 			return ctrl.Result{}, errors.New("failed to type cast content type parameter")
 		}
 	} else {
-		hook.Config["content_type"] = gitHubWebhook.Spec.Config.ContentType
+		hook.Config["content_type"] = gitHubWebhook.Spec.ContentType
 		editWebhook = true
 	}
 	// Check update to insecure SSL
 	if _, ok := hook.Config["insecure_ssl"]; ok {
 		if insecureSSL, ok := hook.Config["insecure_ssl"].(string); ok {
-			if gitHubWebhook.Spec.Config.InsecureSSL != stringToBool(insecureSSL) {
-				hook.Config["insecure_ssl"] = boolToInt(gitHubWebhook.Spec.Config.InsecureSSL)
+			if gitHubWebhook.Spec.InsecureSSL != stringToBool(insecureSSL) {
+				hook.Config["insecure_ssl"] = boolToInt(gitHubWebhook.Spec.InsecureSSL)
 				editWebhook = true
 			}
 		} else {
 			return ctrl.Result{}, errors.New("failed to type cast insecure SSL parameter")
 		}
 	} else {
-		hook.Config["insecure_ssl"] = boolToInt(gitHubWebhook.Spec.Config.InsecureSSL)
+		hook.Config["insecure_ssl"] = boolToInt(gitHubWebhook.Spec.InsecureSSL)
 		editWebhook = true
 	}
 
@@ -232,7 +232,7 @@ func gitHubHookExists(gitHubWebhook *v1alpha1.GitHubWebhook, hooks []*github.Hoo
 			}
 			// Check whether URL matches
 			if url, ok := hook.Config["url"]; ok {
-				if gitHubWebhook.Spec.Config.URL != url {
+				if gitHubWebhook.Spec.PayloadURL != url {
 					continue
 				}
 			} else {
@@ -240,7 +240,7 @@ func gitHubHookExists(gitHubWebhook *v1alpha1.GitHubWebhook, hooks []*github.Hoo
 			}
 			// Check whether content type matches
 			if contentType, ok := hook.Config["content_type"]; ok {
-				if gitHubWebhook.Spec.Config.ContentType != contentType {
+				if gitHubWebhook.Spec.ContentType != contentType {
 					continue
 				}
 			} else {
@@ -249,7 +249,7 @@ func gitHubHookExists(gitHubWebhook *v1alpha1.GitHubWebhook, hooks []*github.Hoo
 			// Check whether insecure SSL matches
 			if insecureSSL, ok := hook.Config["insecure_ssl"]; ok {
 				if insecureSSL, ok := insecureSSL.(string); ok {
-					if gitHubWebhook.Spec.Config.InsecureSSL != stringToBool(insecureSSL) {
+					if gitHubWebhook.Spec.InsecureSSL != stringToBool(insecureSSL) {
 						continue
 					}
 				} else {

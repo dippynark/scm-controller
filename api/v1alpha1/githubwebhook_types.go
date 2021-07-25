@@ -26,26 +26,10 @@ type GitHubWebhookSpec struct {
 	// ID holds the webhook's GitHub ID. This allows edits to be made. The ID is populated when the
 	// webhook is created or when the specification matches with an existing webhook. The matching
 	// criteria is as follows: events, url, content type,
-	ID *int64 `json:"id,omitempty"`
-	// Active refers to status of the webhook for event deliveries.
-	// https://developer.github.com/webhooks/creating/#active
-	// +optional
-	Active     bool       `json:"active,omitempty"`
+	ID         *int64     `json:"id,omitempty"`
 	Repository Repository `json:"repository,omitempty"`
-	// Events refers to Github events to subscribe to
-	// +optional
-	Events []string `json:"events,omitempty"`
-	Config Config   `json:"config,omitempty"`
-}
-
-type Repository struct {
-	Owner string `json:"owner,omitempty"`
-	Name  string `json:"name,omitempty"`
-}
-
-type Config struct {
 	// URL to send webhook payload
-	URL string `json:"url,omitempty"`
+	PayloadURL string `json:"payloadURL,omitempty"`
 	// Enum: application/x-www-form-urlencoded (default), application/json
 	// +optional
 	ContentType string `json:"contentType,omitempty"`
@@ -53,8 +37,20 @@ type Config struct {
 	// https://developer.github.com/webhooks/securing/
 	// +optional
 	Secret *corev1.SecretKeySelector `json:"secret,omitempty"`
+	// Active refers to status of the webhook for event deliveries.
+	// https://developer.github.com/webhooks/creating/#active
+	// +optional
 	// +optional
 	InsecureSSL bool `json:"insecureSSL,omitempty"`
+	// Events refers to Github events to subscribe to
+	// +optional
+	Events []string `json:"events,omitempty"`
+	Active bool     `json:"active,omitempty"`
+}
+
+type Repository struct {
+	Owner string `json:"owner,omitempty"`
+	Name  string `json:"name,omitempty"`
 }
 
 // GitHubWebhookStatus defines the observed state of GitHubWebhook

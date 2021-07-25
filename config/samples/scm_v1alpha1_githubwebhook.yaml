@@ -3,11 +3,15 @@ kind: GitHubWebhook
 metadata:
   name: githubwebhook-sample
 spec:
-  active: true
   repository:
     owner: dippynark
     name: kfmt
-  config:
-    url: https://test2.lukeaddison.co.uk
-    contentType: application/json"
-    insecureSSL: false
+  payloadURL: https://test2.lukeaddison.co.uk
+  contentType: application/json
+  secret:
+    name: github
+    key: token
+  insecureSSL: false
+  events:
+  - "*"
+  active: true
