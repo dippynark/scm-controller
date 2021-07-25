@@ -350,8 +350,9 @@ outer:
 	if _, ok := hook.Config["secret"]; ok {
 		if secret, ok := hook.Config["secret"].(string); ok {
 			// We do a length 0 comparison, a local hash comparison and check whether the external webhook
-			// has been updated. Note that if the last observed update time and secret hash have not been
-			// recorded yet, we only trigger an update if the create and update times differ
+			// has been updated. Checking whether last update time and secret hash status fields are nil
+			// is used when restoring GitHubWebhook resources that have already been created but now have
+			// a blank status
 			if (len(webhookSecret) == 0 && len(secret) > 0) ||
 				(len(secret) == 0 && len(webhookSecret) > 0) ||
 				gitHubWebhook.Status.LastObserveredUpdateTime == nil ||
