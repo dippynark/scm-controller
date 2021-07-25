@@ -19,12 +19,13 @@ package controllers
 import (
 	"context"
 	"crypto/sha1"
-	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/google/go-github/v31/github"
+	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -165,8 +166,15 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 		nextPage = response.NextPage
 	}
 
-	gitHubHookExists, hook := gitHubHookExists(gitHubWebhook, hooks)
-	if !gitHubHookExists {
+	var hook *github.Hook
+	// Attempt to find webhook by ID
+	if gitHubWebhook.Spec.ID != nil {
+		hook = gitHubHookIDExists(*gitHubWebhook.Spec.ID, hooks)
+	}
+
+	// If we can not find an existing webhook then create a new one
+	webhookCreated := false
+	if hook == nil {
 		events := gitHubWebhook.Spec.Events
 		// TODO: use defaulting webhook
 		if gitHubWebhook.Spec.Events == nil {
@@ -183,10 +191,20 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 			},
 		}
 		var err error
-		hook, _, err = r.GitHubClient.Repositories.CreateHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, hook)
+		var resp *github.Response
+		hook, resp, err = r.GitHubClient.Repositories.CreateHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, hook)
 		if err != nil {
+			response := github.CheckResponse(resp.Response)
+			errorResponse, ok := response.(*github.ErrorResponse)
+			if ok {
+				err = errors.New(errorResponse.Message)
+				for _, responseError := range errorResponse.Errors {
+					err = errors.Errorf("%s: %s", err, responseError.Message)
+				}
+			}
 			return ctrl.Result{}, err
 		}
+		webhookCreated = true
 		log.Info("GitHub webhook successfully created!")
 	} else {
 		log.Info("GitHub webhook successfully found!")
@@ -195,12 +213,10 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 	// Webhook created or found so save ID
 	id := hook.GetID()
 	gitHubWebhook.Spec.ID = &id
-	// If the webhook previously didn't exist then we know that we can just created it
-	webhookCreated := !gitHubHookExists
 
-	// At this point the webhook has been created in GitHub (or we have matched with an existing one)
-	// and we have set the correponding ID in the spec. We now need to work out whether to edit the
-	// webhook in GitHub by comparing the desired fields against the actual fields
+	// At this point the webhook has been created in GitHub and we have set the correponding ID in the
+	// spec. We now need to work out whether to edit the webhook in GitHub by comparing the desired
+	// fields against the actual fields
 	editWebhook, hook, err := gitHubHookNeedsEdit(log, gitHubWebhook, hook, webhookSecret, webhookCreated)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -227,7 +243,7 @@ func gitHubHookNeedsEdit(log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook,
 	editWebhook := false
 
 	// Record the last update time to determine whether to overwrite external webhook secret
-	updateTime := v1.NewTime(*hook.UpdatedAt)
+	updateTime := v1.NewTime(hook.GetUpdatedAt())
 
 	// Calculate webhook secret hash to determine whether to overwrite external webhook secret
 	webhookSecretHash := ""
@@ -276,7 +292,8 @@ outer:
 	// Check update to content type
 	if _, ok := hook.Config["content_type"]; ok {
 		if contentType, ok := hook.Config["content_type"].(string); ok {
-			if gitHubWebhook.Spec.ContentType != contentType {
+			// application/json -> json
+			if strings.TrimPrefix("application/", gitHubWebhook.Spec.ContentType) != contentType {
 				hook.Config["content_type"] = gitHubWebhook.Spec.ContentType
 				editWebhook = true
 				log.Info("Content type needs to be edited")
@@ -340,62 +357,15 @@ outer:
 	return editWebhook, hook, nil
 }
 
-func gitHubHookExists(gitHubWebhook *v1alpha1.GitHubWebhook, hooks []*github.Hook) (bool, *github.Hook) {
+func gitHubHookIDExists(id int64, hooks []*github.Hook) *github.Hook {
 
-	// Search by webhook ID
-	if gitHubWebhook.Spec.ID != nil {
-		for _, hook := range hooks {
-			if *gitHubWebhook.Spec.ID == hook.GetID() {
-				return true, hook
-			}
-		}
-	}
-
-	// Fallback to matching parameters. GitHub will not allow duplicate webhooks to be created
 	for _, hook := range hooks {
-		// Check events match
-		for _, desiredEvent := range gitHubWebhook.Spec.Events {
-			for _, actualEvent := range hook.Events {
-				// Check whether an element is missing from the 'opposite' list. This allows for duplicate entries
-				// TODO: Should we allow duplicate entries?
-				if !stringInSlice(desiredEvent, hook.Events) || !stringInSlice(actualEvent, gitHubWebhook.Spec.Events) {
-					return false, nil
-				}
-			}
+		if id == hook.GetID() {
+			return hook
 		}
-		// Check whether URL matches
-		if url, ok := hook.Config["url"]; ok {
-			if gitHubWebhook.Spec.PayloadURL != url {
-				continue
-			}
-		} else {
-			continue
-		}
-		// Check whether content type matches
-		if contentType, ok := hook.Config["content_type"]; ok {
-			if gitHubWebhook.Spec.ContentType != contentType {
-				continue
-			}
-		} else {
-			continue
-		}
-		// Check whether insecure SSL matches
-		if insecureSSL, ok := hook.Config["insecure_ssl"]; ok {
-			if insecureSSL, ok := insecureSSL.(string); ok {
-				if gitHubWebhook.Spec.InsecureSSL != stringToBool(insecureSSL) {
-					continue
-				}
-			} else {
-				continue
-			}
-		} else {
-			continue
-		}
-
-		return true, hook
 	}
 
-	return false, nil
+	return nil
 }
 
 func stringInSlice(s string, list []string) bool {

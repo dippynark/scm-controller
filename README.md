@@ -19,3 +19,14 @@ stringData:
   token: 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
 EOF
 ```
+
+## Adoption
+
+GitHub does not allow two different webhooks with the same parameters (unless they are created
+diabled). For safety we opt to not allow SCM controller to adopt existing webhooks and instead raise
+an error if there is a collision.
+
+## TODO
+
+- Do not allow adoption at all (e.g. two similar webhooks could then compete). Instead, error if
+  webhook of same spec exists
