@@ -18,6 +18,7 @@ package controllers
 
 import (
 	"context"
+	"crypto/sha1"
 	"errors"
 	"fmt"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/google/go-github/v31/github"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -40,9 +42,9 @@ import (
 )
 
 const (
-	namespaceLogName           = "namespace"
-	gitHubWebhookLogName       = "githubwebhook"
-	gitHubWebhookRequeuePeriod = time.Minute
+	namespaceLogName                 = "namespace"
+	gitHubWebhookLogName             = "githubwebhook"
+	gitHubWebhookSecretRequeuePeriod = 30 * time.Second
 )
 
 // GitHubWebhookReconciler reconciles a GitHubWebhook object
@@ -190,14 +192,16 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 		log.Info("GitHub webhook successfully found!")
 	}
 
-	// Webhook created so save ID
+	// Webhook created or found so save ID
 	id := hook.GetID()
 	gitHubWebhook.Spec.ID = &id
+	// If the webhook previously didn't exist then we know that we can just created it
+	webhookCreated := !gitHubHookExists
 
 	// At this point the webhook has been created in GitHub (or we have matched with an existing one)
 	// and we have set the correponding ID in the spec. We now need to work out whether to edit the
 	// webhook in GitHub by comparing the desired fields against the actual fields
-	editWebhook, hook, err := gitHubHookNeedsEdit(log, gitHubWebhook, hook, webhookSecret)
+	editWebhook, hook, err := gitHubHookNeedsEdit(log, gitHubWebhook, hook, webhookSecret, webhookCreated)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -213,14 +217,25 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 
 	if gitHubWebhook.Spec.Secret != nil {
 		// We reconcile regularly if a secret is referenced to ensure external drift is reconciled
-		return reconcile.Result{RequeueAfter: gitHubWebhookRequeuePeriod}, nil
+		return reconcile.Result{RequeueAfter: gitHubWebhookSecretRequeuePeriod}, nil
 	}
 
 	return ctrl.Result{}, nil
 }
 
-func gitHubHookNeedsEdit(log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook, hook *github.Hook, webhookSecret string) (bool, *github.Hook, error) {
+func gitHubHookNeedsEdit(log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook, hook *github.Hook, webhookSecret string, webhookCreated bool) (bool, *github.Hook, error) {
 	editWebhook := false
+
+	// Record the last update time to determine whether to overwrite external webhook secret
+	updateTime := v1.NewTime(*hook.UpdatedAt)
+
+	// Calculate webhook secret hash to determine whether to overwrite external webhook secret
+	webhookSecretHash := ""
+	if webhookSecret != "" {
+		h := sha1.New()
+		h.Write([]byte(webhookSecret))
+		webhookSecretHash = fmt.Sprintf("%x", h.Sum(nil))
+	}
 
 	// Check whether to update active
 	if gitHubWebhook.Spec.Active != hook.GetActive() {
@@ -293,9 +308,18 @@ outer:
 	// Check update to secret
 	if _, ok := hook.Config["secret"]; ok {
 		if secret, ok := hook.Config["secret"].(string); ok {
-			// Secret is returned as `********` so just do a length comparison
-			// TODO: also check whether the Secret has been modified since the webhook
-			if (len(webhookSecret) == 0 && len(secret) > 0) || (len(secret) == 0 && len(webhookSecret) > 0) {
+			// Secret is returned as `********` so we do a length 0 comparison, local hash comparison and
+			// check whether the external webhook has been updated. Note that if a last observed update
+			// time or secret hash not been recorded yet, we only trigger an update if the webhook has not
+			// just been created
+			if (len(webhookSecret) == 0 && len(secret) > 0) ||
+				(len(secret) == 0 && len(webhookSecret) > 0) ||
+				(gitHubWebhook.Status.LastObserveredUpdateTime == nil && !webhookCreated) ||
+				(gitHubWebhook.Status.LastObserveredUpdateTime != nil &&
+					gitHubWebhook.Status.LastObserveredUpdateTime.Before(&updateTime)) ||
+				(gitHubWebhook.Status.LastObservedSecretHash == nil && !webhookCreated) ||
+				(gitHubWebhook.Status.LastObservedSecretHash != nil &&
+					*gitHubWebhook.Status.LastObservedSecretHash != webhookSecretHash) {
 				hook.Config["secret"] = webhookSecret
 				editWebhook = true
 				log.Info("Secret needs to be edited")
@@ -309,60 +333,66 @@ outer:
 		log.Info("Secret needs to be edited")
 	}
 
+	// Update last update time and webhook secret hash
+	gitHubWebhook.Status.LastObserveredUpdateTime = &updateTime
+	gitHubWebhook.Status.LastObservedSecretHash = &webhookSecretHash
+
 	return editWebhook, hook, nil
 }
 
 func gitHubHookExists(gitHubWebhook *v1alpha1.GitHubWebhook, hooks []*github.Hook) (bool, *github.Hook) {
 
-	if gitHubWebhook.Spec.ID == nil {
-		for _, hook := range hooks {
-			// Check events match
-			for _, desiredEvent := range gitHubWebhook.Spec.Events {
-				for _, actualEvent := range hook.Events {
-					// Check whether an element is missing from the 'opposite' list. This allows for duplicate entries
-					// TODO: Should we allow duplicate entries?
-					if !stringInSlice(desiredEvent, hook.Events) || !stringInSlice(actualEvent, gitHubWebhook.Spec.Events) {
-						return false, nil
-					}
-				}
-			}
-			// Check whether URL matches
-			if url, ok := hook.Config["url"]; ok {
-				if gitHubWebhook.Spec.PayloadURL != url {
-					continue
-				}
-			} else {
-				continue
-			}
-			// Check whether content type matches
-			if contentType, ok := hook.Config["content_type"]; ok {
-				if gitHubWebhook.Spec.ContentType != contentType {
-					continue
-				}
-			} else {
-				continue
-			}
-			// Check whether insecure SSL matches
-			if insecureSSL, ok := hook.Config["insecure_ssl"]; ok {
-				if insecureSSL, ok := insecureSSL.(string); ok {
-					if gitHubWebhook.Spec.InsecureSSL != stringToBool(insecureSSL) {
-						continue
-					}
-				} else {
-					continue
-				}
-			} else {
-				continue
-			}
-
-			return true, hook
-		}
-	} else {
+	// Search by webhook ID
+	if gitHubWebhook.Spec.ID != nil {
 		for _, hook := range hooks {
 			if *gitHubWebhook.Spec.ID == hook.GetID() {
 				return true, hook
 			}
 		}
+	}
+
+	// Fallback to matching parameters. GitHub will not allow duplicate webhooks to be created
+	for _, hook := range hooks {
+		// Check events match
+		for _, desiredEvent := range gitHubWebhook.Spec.Events {
+			for _, actualEvent := range hook.Events {
+				// Check whether an element is missing from the 'opposite' list. This allows for duplicate entries
+				// TODO: Should we allow duplicate entries?
+				if !stringInSlice(desiredEvent, hook.Events) || !stringInSlice(actualEvent, gitHubWebhook.Spec.Events) {
+					return false, nil
+				}
+			}
+		}
+		// Check whether URL matches
+		if url, ok := hook.Config["url"]; ok {
+			if gitHubWebhook.Spec.PayloadURL != url {
+				continue
+			}
+		} else {
+			continue
+		}
+		// Check whether content type matches
+		if contentType, ok := hook.Config["content_type"]; ok {
+			if gitHubWebhook.Spec.ContentType != contentType {
+				continue
+			}
+		} else {
+			continue
+		}
+		// Check whether insecure SSL matches
+		if insecureSSL, ok := hook.Config["insecure_ssl"]; ok {
+			if insecureSSL, ok := insecureSSL.(string); ok {
+				if gitHubWebhook.Spec.InsecureSSL != stringToBool(insecureSSL) {
+					continue
+				}
+			} else {
+				continue
+			}
+		} else {
+			continue
+		}
+
+		return true, hook
 	}
 
 	return false, nil

@@ -61,8 +61,8 @@ type Repository struct {
 
 // GitHubWebhookStatus defines the observed state of GitHubWebhook
 type GitHubWebhookStatus struct {
-	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-	// Important: Run "make" to regenerate code after modifying this file
+	LastObserveredUpdateTime *metav1.Time `json:"lastObservedUpdateTime,omitempty"`
+	LastObservedSecretHash   *string      `json:"lastObservedSecretHash,omitempty"`
 }
 
 //+kubebuilder:object:root=true

@@ -87,6 +87,12 @@ spec:
             type: object
           status:
             description: GitHubWebhookStatus defines the observed state of GitHubWebhook
+            properties:
+              lastObservedSecretHash:
+                type: string
+              lastObservedUpdateTime:
+                format: date-time
+                type: string
             type: object
         type: object
     served: true
