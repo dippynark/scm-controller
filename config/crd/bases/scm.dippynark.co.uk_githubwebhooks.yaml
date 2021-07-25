@@ -47,10 +47,8 @@ spec:
                   type: string
                 type: array
               id:
-                description: 'ID holds the webhook''s GitHub ID. This allows edits
-                  to be made. The ID is populated when the webhook is created or when
-                  the specification matches with an existing webhook. The matching
-                  criteria is as follows: events, url, content type,'
+                description: ID holds the webhook's GitHub ID. The ID is populated
+                  when the webhook is created.
                 format: int64
                 type: integer
               insecureSSL:
