@@ -11,8 +11,10 @@ Create personal access token with `admin:repo_hook` scope:
 Create Kubernetes Secret containing the personal access token and deploy the controller.
 
 ```sh
-kubectl create namespace scm-controller-system -o yaml --dry-run=client \
-  | kubectl apply -f -
+kubectl create namespace scm-controller-system \
+  -o yaml \
+  --dry-run=client \
+    | kubectl apply -f -
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
