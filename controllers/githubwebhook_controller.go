@@ -18,9 +18,8 @@ package controllers
 
 import (
 	"context"
-	"crypto/sha1"
+	"crypto/sha256"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -45,7 +44,7 @@ import (
 const (
 	namespaceLogName                 = "namespace"
 	gitHubWebhookLogName             = "githubwebhook"
-	gitHubWebhookSecretRequeuePeriod = 30 * time.Second
+	gitHubWebhookSecretRequeuePeriod = 60 * time.Second
 )
 
 // GitHubWebhookReconciler reconciles a GitHubWebhook object
@@ -88,6 +87,8 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				rerr = err
 			}
 		}
+
+		log.Info("GitHub webhook successfully reconciled!")
 	}()
 
 	if !gitHubWebhook.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -173,7 +174,6 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 	}
 
 	// If we can not find an existing webhook then create a new one
-	webhookCreated := false
 	if hook == nil {
 		events := gitHubWebhook.Spec.Events
 		// TODO: use defaulting webhook
@@ -204,29 +204,33 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 			}
 			return ctrl.Result{}, err
 		}
-		webhookCreated = true
 		log.Info("GitHub webhook successfully created!")
-	} else {
-		log.Info("GitHub webhook successfully found!")
 	}
 
 	// Webhook created or found so save ID
 	id := hook.GetID()
-	gitHubWebhook.Spec.ID = &id
+	if gitHubWebhook.Spec.ID == nil || *gitHubWebhook.Spec.ID != id {
+		gitHubWebhook.Spec.ID = &id
+		// Rely on generated event to continue reconciliation
+		return ctrl.Result{}, nil
+	}
 
 	// At this point the webhook has been created in GitHub and we have set the correponding ID in the
 	// spec. We now need to work out whether to edit the webhook in GitHub by comparing the desired
 	// fields against the actual fields
-	editWebhook, hook, err := gitHubHookNeedsEdit(log, gitHubWebhook, hook, webhookSecret, webhookCreated)
+	editWebhook, hook, err := gitHubHookNeedsEdit(log, gitHubWebhook, hook, webhookSecret)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 
 	if editWebhook {
-		_, _, err := r.GitHubClient.Repositories.EditHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, *gitHubWebhook.Spec.ID, hook)
+		var err error
+		hook, _, err = r.GitHubClient.Repositories.EditHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, *gitHubWebhook.Spec.ID, hook)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
+		updatedAt := v1.NewTime(hook.GetUpdatedAt())
+		gitHubWebhook.Status.LastObserveredUpdateTime = &updatedAt
 		// TODO: return hook and check values have actually changed
 		log.Info("GitHub webhook successfully edited!")
 	}
@@ -239,19 +243,24 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 	return ctrl.Result{}, nil
 }
 
-func gitHubHookNeedsEdit(log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook, hook *github.Hook, webhookSecret string, webhookCreated bool) (bool, *github.Hook, error) {
+func gitHubHookNeedsEdit(log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook, hook *github.Hook, webhookSecret string) (bool, *github.Hook, error) {
 	editWebhook := false
 
 	// Record the last update time to determine whether to overwrite external webhook secret
-	updateTime := v1.NewTime(hook.GetUpdatedAt())
+	updatedAt := v1.NewTime(hook.GetUpdatedAt())
+	defer func() {
+		gitHubWebhook.Status.LastObserveredUpdateTime = &updatedAt
+	}()
 
 	// Calculate webhook secret hash to determine whether to overwrite external webhook secret
 	webhookSecretHash := ""
 	if webhookSecret != "" {
-		h := sha1.New()
-		h.Write([]byte(webhookSecret))
-		webhookSecretHash = fmt.Sprintf("%x", h.Sum(nil))
+		sum := sha256.Sum256([]byte(webhookSecret))
+		webhookSecretHash = fmt.Sprintf("%x", sum)
 	}
+	defer func() {
+		gitHubWebhook.Status.LastObservedSecretHash = &webhookSecretHash
+	}()
 
 	// Check whether to update active
 	if gitHubWebhook.Spec.Active != hook.GetActive() {
@@ -290,10 +299,9 @@ outer:
 		log.Info("Payload URL needs to be edited")
 	}
 	// Check update to content type
-	if _, ok := hook.Config["content_type"]; ok {
-		if contentType, ok := hook.Config["content_type"].(string); ok {
-			// application/json -> json
-			if strings.TrimPrefix("application/", gitHubWebhook.Spec.ContentType) != contentType {
+	if contentType, ok := hook.Config["content_type"]; ok {
+		if contentType, ok := contentType.(string); ok {
+			if gitHubWebhook.Spec.ContentType != contentType {
 				hook.Config["content_type"] = gitHubWebhook.Spec.ContentType
 				editWebhook = true
 				log.Info("Content type needs to be edited")
@@ -322,22 +330,22 @@ outer:
 		editWebhook = true
 		log.Info("Insecure SSL needs to be edited")
 	}
-	// Check update to secret
+	// Check update to secret. The webhook secret is returned as `********` so we make sure it is
+	// always set since we use this hook resource for making edits
+	hook.Config["secret"] = webhookSecret
 	if _, ok := hook.Config["secret"]; ok {
 		if secret, ok := hook.Config["secret"].(string); ok {
-			// Secret is returned as `********` so we do a length 0 comparison, local hash comparison and
-			// check whether the external webhook has been updated. Note that if a last observed update
-			// time or secret hash not been recorded yet, we only trigger an update if the webhook has not
-			// just been created
+			// We do a length 0 comparison, a local hash comparison and check whether the external webhook
+			// has been updated. Note that if a last observed update time has not been recorded yet, we
+			// only trigger an update if the create and update times differ
 			if (len(webhookSecret) == 0 && len(secret) > 0) ||
 				(len(secret) == 0 && len(webhookSecret) > 0) ||
-				(gitHubWebhook.Status.LastObserveredUpdateTime == nil && !webhookCreated) ||
+				(gitHubWebhook.Status.LastObserveredUpdateTime == nil &&
+					!hook.GetCreatedAt().Equal(hook.GetUpdatedAt())) ||
 				(gitHubWebhook.Status.LastObserveredUpdateTime != nil &&
-					gitHubWebhook.Status.LastObserveredUpdateTime.Before(&updateTime)) ||
-				(gitHubWebhook.Status.LastObservedSecretHash == nil && !webhookCreated) ||
+					gitHubWebhook.Status.LastObserveredUpdateTime.Before(&updatedAt)) ||
 				(gitHubWebhook.Status.LastObservedSecretHash != nil &&
 					*gitHubWebhook.Status.LastObservedSecretHash != webhookSecretHash) {
-				hook.Config["secret"] = webhookSecret
 				editWebhook = true
 				log.Info("Secret needs to be edited")
 			}
@@ -345,14 +353,9 @@ outer:
 			return false, hook, errors.New("failed to type cast secret parameter")
 		}
 	} else {
-		hook.Config["secret"] = webhookSecret
 		editWebhook = true
 		log.Info("Secret needs to be edited")
 	}
-
-	// Update last update time and webhook secret hash
-	gitHubWebhook.Status.LastObserveredUpdateTime = &updateTime
-	gitHubWebhook.Status.LastObservedSecretHash = &webhookSecretHash
 
 	return editWebhook, hook, nil
 }

@@ -1,3 +1,11 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-webhook
+stringData:
+  secret: tester
+---
 apiVersion: scm.dippynark.co.uk/v1alpha1
 kind: GitHubWebhook
 metadata:
@@ -6,19 +14,16 @@ spec:
   repository:
     owner: dippynark
     name: kfmt
-  payloadURL: https://test.lukeaddison.co.uk
-  contentType: application/json
+  # Cannot be empty
+  payloadURL: https://test2.lukeaddison.co.uk
+  # Can be anything, but verify it's `json` or `form`
+  contentType: form
   secret:
     name: github-webhook
     key: secret
   insecureSSL: false
+  # GitHub API allows duplicates so we do too
+  # Check values come from whitelist though
   events:
   - "*"
   active: true
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: github-webhook
-stringData:
-  secret: test
