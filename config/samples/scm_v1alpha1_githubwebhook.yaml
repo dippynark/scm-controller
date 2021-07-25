@@ -15,7 +15,7 @@ spec:
     owner: dippynark
     name: kfmt
   # Cannot be empty
-  payloadURL: https://test2.lukeaddison.co.uk
+  payloadURL: https://test.lukeaddison.co.uk
   # Can be anything, but verify it's `json` or `form`
   contentType: form
   secret:

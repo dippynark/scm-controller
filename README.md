@@ -1,13 +1,18 @@
 # scm-controller
 
-Need access token with `admin:repo_hook`.
+SCM Controller allows management of SCM resources using Kubernetes. Currently only GitHubWebhooks
+are supported.
+
+## Install
+
+Create personal access token with `admin:repo_hook` scope:
+[https://github.com/settings/tokens/new?scopes=write:repo_hook](https://github.com/settings/tokens/new?scopes=admin:repo_hook). Admin is needed for webhook deletion.
+
+Create Kubernetes Secret containing the personal access token and deploy the controller.
 
 ```sh
-kubebuilder init --domain dippynark.co.uk # --repo github.com/dippynark/scm-controller
-kubebuilder create api --group scm --version v1alpha1 --kind GitHubWebhook
-```
-
-```sh
+kubectl create namespace scm-controller-system -o yaml --dry-run=client \
+  | kubectl apply -f -
 kubectl apply -f - <<EOF
 apiVersion: v1
 kind: Secret
@@ -15,10 +20,14 @@ metadata:
   name: github
   namespace: scm-controller-system
 stringData:
-  # dippynark personal access token with admin:repo_hook scope
-  token: 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
+  token: ghp_EXAMPLE123
 EOF
+make deploy
 ```
+
+## Example
+
+An example can be found [here](config/samples/scm_v1alpha1_githubwebhook.yaml).
 
 ## Adoption
 
