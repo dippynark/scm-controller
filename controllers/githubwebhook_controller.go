@@ -136,8 +136,27 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	id := hook.GetID()
 	gitHubWebhook.Spec.ID = &id
 
-	// At this point the webhook has been created in GitHub and we have set the correponding ID in the
-	// spec. We now need to work out whether to edit the webhook in GitHub by comparing each field
+	// At this point the webhook has been created in GitHub (or has matched with an existing one) and
+	// we have set the correponding ID in the spec. We now need to work out whether to edit the
+	// webhook in GitHub by comparing each field
+	editWebhook, hook, err := gitHubHookNeedsEdit(gitHubWebhook, hook)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+
+	if editWebhook {
+		_, _, err := client.Repositories.EditHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, *gitHubWebhook.Spec.ID, hook)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		log.Info("Webhook updated successfully!")
+		// TODO: return hook and check values have actually changed
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func gitHubHookNeedsEdit(gitHubWebhook *v1alpha1.GitHubWebhook, hook *github.Hook) (bool, *github.Hook, error) {
 	editWebhook := false
 
 	// Check whether to update active
@@ -167,7 +186,7 @@ outer:
 				editWebhook = true
 			}
 		} else {
-			return ctrl.Result{}, errors.New("failed to type cast URL parameter")
+			return false, hook, errors.New("failed to type cast URL parameter")
 		}
 	} else {
 		hook.Config["url"] = gitHubWebhook.Spec.PayloadURL
@@ -181,7 +200,7 @@ outer:
 				editWebhook = true
 			}
 		} else {
-			return ctrl.Result{}, errors.New("failed to type cast content type parameter")
+			return false, hook, errors.New("failed to type cast content type parameter")
 		}
 	} else {
 		hook.Config["content_type"] = gitHubWebhook.Spec.ContentType
@@ -195,25 +214,14 @@ outer:
 				editWebhook = true
 			}
 		} else {
-			return ctrl.Result{}, errors.New("failed to type cast insecure SSL parameter")
+			return false, hook, errors.New("failed to type cast insecure SSL parameter")
 		}
 	} else {
 		hook.Config["insecure_ssl"] = boolToInt(gitHubWebhook.Spec.InsecureSSL)
 		editWebhook = true
 	}
 
-	if editWebhook {
-		fmt.Println("Update!")
-		_, _, err := client.Repositories.EditHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, *gitHubWebhook.Spec.ID, hook)
-		if err != nil {
-			return ctrl.Result{}, err
-		}
-		// TODO: return hook and check values have actually changed
-	} else {
-		fmt.Println("Do not update!")
-	}
-
-	return ctrl.Result{}, nil
+	return editWebhook, hook, nil
 }
 
 func gitHubHookExists(gitHubWebhook *v1alpha1.GitHubWebhook, hooks []*github.Hook) (bool, *github.Hook) {
