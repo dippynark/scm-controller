@@ -29,9 +29,7 @@ const (
 
 // GitHubWebhookSpec defines the desired state of GitHubWebhook
 type GitHubWebhookSpec struct {
-	// ID holds the webhook's GitHub ID. This allows edits to be made. The ID is populated when the
-	// webhook is created or when the specification matches with an existing webhook. The matching
-	// criteria is as follows: events, url, content type,
+	// ID holds the webhook's GitHub ID. The ID is populated when the webhook is created.
 	ID         *int64     `json:"id,omitempty"`
 	Repository Repository `json:"repository,omitempty"`
 	// URL to send webhook payload

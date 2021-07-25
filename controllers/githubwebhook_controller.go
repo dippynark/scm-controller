@@ -154,8 +154,8 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 		}
 	}
 
-	var hook *github.Hook
 	// Attempt to find webhook by ID
+	var hook *github.Hook
 	if gitHubWebhook.Spec.ID != nil {
 		var err error
 		var resp *github.Response
