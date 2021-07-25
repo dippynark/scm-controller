@@ -21,6 +21,12 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+const (
+	// GitHubWebhookFinalizer allows reconciliation to clean up resources associated with a
+	// GitHubWebhook before removing it from the API Server
+	GitHubWebhookFinalizer = "githubwebhook.scm.dippynark.co.uk"
+)
+
 // GitHubWebhookSpec defines the desired state of GitHubWebhook
 type GitHubWebhookSpec struct {
 	// ID holds the webhook's GitHub ID. This allows edits to be made. The ID is populated when the

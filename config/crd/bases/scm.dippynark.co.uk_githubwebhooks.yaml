@@ -37,39 +37,10 @@ spec:
             description: GitHubWebhookSpec defines the desired state of GitHubWebhook
             properties:
               active:
-                description: Active refers to status of the webhook for event deliveries.
-                  https://developer.github.com/webhooks/creating/#active
                 type: boolean
-              config:
-                properties:
-                  contentType:
-                    description: 'Enum: application/x-www-form-urlencoded (default),
-                      application/json'
-                    type: string
-                  insecureSSL:
-                    type: boolean
-                  secret:
-                    description: GitHub webhook secret https://developer.github.com/webhooks/securing/
-                    properties:
-                      key:
-                        description: The key of the secret to select from.  Must be
-                          a valid secret key.
-                        type: string
-                      name:
-                        description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
-                          TODO: Add other useful fields. apiVersion, kind, uid?'
-                        type: string
-                      optional:
-                        description: Specify whether the Secret or its key must be
-                          defined
-                        type: boolean
-                    required:
-                    - key
-                    type: object
-                  url:
-                    description: URL to send webhook payload
-                    type: string
-                type: object
+              contentType:
+                description: 'Enum: application/x-www-form-urlencoded (default), application/json'
+                type: string
               events:
                 description: Events refers to Github events to subscribe to
                 items:
@@ -82,12 +53,36 @@ spec:
                   criteria is as follows: events, url, content type,'
                 format: int64
                 type: integer
+              insecureSSL:
+                description: Active refers to status of the webhook for event deliveries.
+                  https://developer.github.com/webhooks/creating/#active
+                type: boolean
+              payloadURL:
+                description: URL to send webhook payload
+                type: string
               repository:
                 properties:
                   name:
                     type: string
                   owner:
                     type: string
+                type: object
+              secret:
+                description: GitHub webhook secret https://developer.github.com/webhooks/securing/
+                properties:
+                  key:
+                    description: The key of the secret to select from.  Must be a
+                      valid secret key.
+                    type: string
+                  name:
+                    description: 'Name of the referent. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/names/#names
+                      TODO: Add other useful fields. apiVersion, kind, uid?'
+                    type: string
+                  optional:
+                    description: Specify whether the Secret or its key must be defined
+                    type: boolean
+                required:
+                - key
                 type: object
             type: object
           status:

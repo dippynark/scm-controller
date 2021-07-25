@@ -19,16 +19,16 @@ package controllers
 import (
 	"context"
 	"errors"
-	"fmt"
-	"os"
 
+	"github.com/go-logr/logr"
 	"github.com/google/go-github/v31/github"
-	"golang.org/x/oauth2"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"sigs.k8s.io/cluster-api/util/patch"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/dippynark/scm-controller/api/v1alpha1"
@@ -36,13 +36,15 @@ import (
 )
 
 const (
-	githubTokenEnvVar = "GITHUB_TOKEN"
+	namespaceLogName     = "namespace"
+	gitHubWebhookLogName = "githubwebhook"
 )
 
 // GitHubWebhookReconciler reconciles a GitHubWebhook object
 type GitHubWebhookReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
+	Scheme       *runtime.Scheme
+	GitHubClient *github.Client
 }
 
 //+kubebuilder:rbac:groups=scm.dippynark.co.uk,resources=githubwebhooks,verbs=get;list;watch;create;update;patch;delete
@@ -79,21 +81,44 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}()
 
-	// https://github.com/google/go-github#authentication
-	githubToken := os.Getenv(githubTokenEnvVar)
-	fmt.Print(githubToken)
-	ts := oauth2.StaticTokenSource(
-		&oauth2.Token{AccessToken: githubToken},
-	)
-	tc := oauth2.NewClient(ctx, ts)
-	client := github.NewClient(tc)
+	if !gitHubWebhook.ObjectMeta.DeletionTimestamp.IsZero() {
+		return r.reconcileDelete(ctx, gitHubWebhook)
+	}
+
+	return r.reconcileNormal(ctx, log, gitHubWebhook)
+}
+
+func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
+
+	if gitHubWebhook.Spec.ID != nil {
+		_, err := r.GitHubClient.Repositories.DeleteHook(ctx,
+			gitHubWebhook.Spec.Repository.Owner,
+			gitHubWebhook.Spec.Repository.Name,
+			*gitHubWebhook.Spec.ID)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		controllerutil.RemoveFinalizer(gitHubWebhook, v1alpha1.GitHubWebhookFinalizer)
+	}
+
+	return ctrl.Result{}, nil
+}
+
+func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
+
+	// Add finalizer
+	controllerutil.AddFinalizer(gitHubWebhook, v1alpha1.GitHubWebhookFinalizer)
+
+	// Add foregroundDeletion finalizer
+	// https://kubernetes.io/docs/concepts/workloads/controllers/garbage-collection/#controlling-how-the-garbage-collector-deletes-dependents
+	controllerutil.AddFinalizer(gitHubWebhook, metav1.FinalizerDeleteDependents)
 
 	// List hooks across all pages
 	hooks := []*github.Hook{}
 	nextPage := 1
 	for nextPage > 0 {
 		listOptions := &github.ListOptions{Page: nextPage}
-		newHooks, response, err := client.Repositories.ListHooks(ctx,
+		newHooks, response, err := r.GitHubClient.Repositories.ListHooks(ctx,
 			gitHubWebhook.Spec.Repository.Owner,
 			gitHubWebhook.Spec.Repository.Name,
 			listOptions)
@@ -102,10 +127,6 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 		hooks = append(hooks, newHooks...)
 		nextPage = response.NextPage
-	}
-
-	for _, hook := range hooks {
-		fmt.Printf("%#v\n", *hook)
 	}
 
 	gitHubHookExists, hook := gitHubHookExists(gitHubWebhook, hooks)
@@ -126,13 +147,14 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				"insecure_ssl": boolToInt(gitHubWebhook.Spec.InsecureSSL),
 			},
 		}
-		hook, _, err = client.Repositories.CreateHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, hook)
+		var err error
+		hook, _, err = r.GitHubClient.Repositories.CreateHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, hook)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
 	}
 
-	// Webhook exists so save ID
+	// Webhook created so save ID
 	id := hook.GetID()
 	gitHubWebhook.Spec.ID = &id
 
@@ -145,7 +167,7 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 
 	if editWebhook {
-		_, _, err := client.Repositories.EditHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, *gitHubWebhook.Spec.ID, hook)
+		_, _, err := r.GitHubClient.Repositories.EditHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, *gitHubWebhook.Spec.ID, hook)
 		if err != nil {
 			return ctrl.Result{}, err
 		}
@@ -161,7 +183,6 @@ func gitHubHookNeedsEdit(gitHubWebhook *v1alpha1.GitHubWebhook, hook *github.Hoo
 
 	// Check whether to update active
 	if gitHubWebhook.Spec.Active != hook.GetActive() {
-		fmt.Println("Active differs!")
 		hook.Active = &gitHubWebhook.Spec.Active
 		editWebhook = true
 	}

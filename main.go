@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 
@@ -24,6 +25,8 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	"github.com/google/go-github/v31/github"
+	"golang.org/x/oauth2"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
@@ -39,6 +42,10 @@ import (
 var (
 	scheme   = runtime.NewScheme()
 	setupLog = ctrl.Log.WithName("setup")
+)
+
+const (
+	githubTokenEnvVar = "GITHUB_TOKEN"
 )
 
 func init() {
@@ -78,9 +85,19 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Setup GitHub client
+	// https://github.com/google/go-github#authentication
+	gitHubToken := os.Getenv(githubTokenEnvVar)
+	ts := oauth2.StaticTokenSource(
+		&oauth2.Token{AccessToken: gitHubToken},
+	)
+	tc := oauth2.NewClient(context.TODO(), ts)
+	gitHubClient := github.NewClient(tc)
+
 	if err = (&controllers.GitHubWebhookReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
+		Client:       mgr.GetClient(),
+		Scheme:       mgr.GetScheme(),
+		GitHubClient: gitHubClient,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "GitHubWebhook")
 		os.Exit(1)

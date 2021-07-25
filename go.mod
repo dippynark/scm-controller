@@ -3,6 +3,7 @@ module github.com/dippynark/scm-controller
 go 1.16
 
 require (
+	github.com/go-logr/logr v0.4.0
 	github.com/google/go-github/v31 v31.0.0
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.13.0
