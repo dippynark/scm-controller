@@ -34,8 +34,8 @@ An example can be found [here](config/samples/scm_v1alpha1_githubwebhook.yaml).
 ## Adoption
 
 GitHub does not allow two different webhooks with the same parameters (unless they are created
-diabled). For safety we opt to not allow SCM controller to adopt existing webhooks and instead raise
-an error if there is a collision.
+inactive). For safety we opt to not allow SCM controller to adopt existing webhooks and instead
+raise an error if there is a collision.
 
 ## TODO
 
