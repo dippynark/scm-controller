@@ -106,6 +106,7 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
 
 	// Set readiness and conditions
+	gitHubWebhook.Status.FailureMessage = nil
 	gitHubWebhook.Status.Ready = false
 	gitHubWebhook.Status.Conditions = setCondition(gitHubWebhook.Status.Conditions, v1alpha1.ReadyGitHubWebhookConditionType, v1.ConditionUnknown, "ReconciliationStarted", "")
 
@@ -123,18 +124,23 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 		if err != nil {
 			if k8serrors.IsNotFound(err) {
 				if gitHubWebhook.Spec.Secret.Optional == nil || !*gitHubWebhook.Spec.Secret.Optional {
-					return ctrl.Result{}, fmt.Errorf("failed to find secret: %s/%s",
+					err = fmt.Errorf("failed to find secret: %s/%s",
 						gitHubWebhook.Namespace,
 						gitHubWebhook.Spec.Secret.Name)
+					gitHubWebhook.Status.SetFailureMessage(err)
+					return ctrl.Result{}, err
 				}
 			} else {
+				gitHubWebhook.Status.SetFailureMessage(err)
 				return ctrl.Result{}, err
 			}
 		} else {
 			webhookSecretBytes, ok := webhookSecretObject.Data[gitHubWebhook.Spec.Secret.Key]
 			// If the key does not exist and it is not optional then return an error
 			if !ok && (gitHubWebhook.Spec.Secret.Optional == nil || !*gitHubWebhook.Spec.Secret.Optional) {
-				return ctrl.Result{}, fmt.Errorf("failed to find secret key: \"%s\"", gitHubWebhook.Spec.Secret.Key)
+				gitHubWebhook.Status.SetFailureMessage(err)
+				err = fmt.Errorf("failed to find secret key: \"%s\"", gitHubWebhook.Spec.Secret.Key)
+				return ctrl.Result{}, err
 			}
 			if ok {
 				webhookSecret = string(webhookSecretBytes)
@@ -151,8 +157,11 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 		if err != nil {
 			// We do not care if the webhook is not found
 			if resp.StatusCode != 404 {
+				gitHubWebhook.Status.SetFailureMessage(err)
 				return ctrl.Result{}, err
 			}
+			// Hook doesn't exist anymore so clear ID field
+			gitHubWebhook.Spec.ID = nil
 		}
 	}
 
@@ -186,6 +195,7 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 				}
 			}
 			r.Recorder.Event(gitHubWebhook, "Warning", "CreateFailed", err.Error())
+			gitHubWebhook.Status.SetFailureMessage(err)
 			return ctrl.Result{}, err
 		}
 		r.Recorder.Event(gitHubWebhook, "Normal", "Create", "Webhook created")
@@ -216,6 +226,7 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 	// fields against the actual fields
 	editWebhook, hook, err := gitHubHookNeedsEdit(log, gitHubWebhook, hook, webhookSecret)
 	if err != nil {
+		gitHubWebhook.Status.SetFailureMessage(err)
 		return ctrl.Result{}, err
 	}
 
@@ -224,6 +235,7 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 		hook, _, err = r.GitHubClient.Repositories.EditHook(ctx, gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name, *gitHubWebhook.Spec.ID, hook)
 		if err != nil {
 			r.Recorder.Event(gitHubWebhook, "Warning", "EditFailed", err.Error())
+			gitHubWebhook.Status.SetFailureMessage(err)
 			return ctrl.Result{}, err
 		}
 		updatedAt := v1.NewTime(hook.GetUpdatedAt())
@@ -253,9 +265,10 @@ func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.
 			gitHubWebhook.Spec.Repository.Name,
 			*gitHubWebhook.Spec.ID)
 		if err != nil {
-			// We do not care if the webhook is not found
+			// We do not care if the webhook was not found
 			if resp.StatusCode != 404 {
 				r.Recorder.Event(gitHubWebhook, "Warning", "DeleteFailed", err.Error())
+				gitHubWebhook.Status.SetFailureMessage(err)
 				return ctrl.Result{}, err
 			}
 		}
@@ -282,6 +295,10 @@ func reconcilePhase(gitHubWebhook *v1alpha1.GitHubWebhook) {
 
 	if !gitHubWebhook.DeletionTimestamp.IsZero() {
 		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseDeleting
+	}
+
+	if gitHubWebhook.Status.FailureMessage != nil {
+		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseFailed
 	}
 }
 

@@ -19,6 +19,7 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/pointer"
 )
 
 const (
@@ -73,6 +74,12 @@ type GitHubWebhookStatus struct {
 
 	// Ready indicates when the GitHubWebhook is ready
 	Ready bool `json:"ready,omitempty"`
+
+	// FailureMessage will be set in the event that there is a terminal problem reconciling the
+	// GitHubWebhook and will contain a more verbose string suitable for logging and human
+	// consumption
+	// +optional
+	FailureMessage *string `json:"failureMessage,omitempty"`
 }
 
 // GitHubWebhookPhase describes the state of a KubernetesMachine
@@ -92,6 +99,11 @@ type GitHubWebhookConditionType string
 const (
 	ReadyGitHubWebhookConditionType GitHubWebhookConditionType = "Ready"
 )
+
+// SetFailureMessage sets the KubernetesMachine error message.
+func (g *GitHubWebhookStatus) SetFailureMessage(v error) {
+	g.FailureMessage = pointer.StringPtr(v.Error())
+}
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
