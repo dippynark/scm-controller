@@ -268,8 +268,12 @@ func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.
 }
 
 func reconcilePhase(gitHubWebhook *v1alpha1.GitHubWebhook) {
-	if gitHubWebhook.Spec.ID == nil || !gitHubWebhook.Status.Ready {
+	if gitHubWebhook.Spec.ID == nil {
 		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseCreating
+	}
+
+	if gitHubWebhook.Spec.ID != nil {
+		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseEditing
 	}
 
 	if gitHubWebhook.Spec.ID != nil && gitHubWebhook.Status.Ready {

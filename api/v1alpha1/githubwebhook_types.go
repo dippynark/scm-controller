@@ -81,6 +81,7 @@ type GitHubWebhookPhase string
 // These are the valid phases of GitHubWebhook
 const (
 	GitHubWebhookPhaseCreating GitHubWebhookPhase = "Creating"
+	GitHubWebhookPhaseEditing  GitHubWebhookPhase = "Editing"
 	GitHubWebhookPhaseReady    GitHubWebhookPhase = "Ready"
 	GitHubWebhookPhaseDeleting GitHubWebhookPhase = "Deleting"
 	GitHubWebhookPhaseFailed   GitHubWebhookPhase = "Failed"
