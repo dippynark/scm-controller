@@ -385,7 +385,7 @@ func stringInSlice(s string, list []string) bool {
 }
 
 func stringToBool(s string) bool {
-	return s == "1"
+	return s != "0"
 }
 
 func boolToInt(b bool) int {
