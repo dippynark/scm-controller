@@ -8,7 +8,8 @@ are supported.
 > GitHub Enterprise is currently not supported
 
 Create a GitHub personal access token with `admin:repo_hook` scope:
-[https://github.com/settings/tokens/new?scopes=write:repo_hook](https://github.com/settings/tokens/new?scopes=admin:repo_hook). Admin is needed for webhook deletion.
+[https://github.com/settings/tokens/new?scopes=write:repo_hook](https://github.com/settings/tokens/new?scopes=admin:repo_hook).
+Admin is needed for webhook deletion.
 
 Create a Kubernetes Secret containing the personal access token:
 
