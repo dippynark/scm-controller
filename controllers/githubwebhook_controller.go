@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"path"
 	"strconv"
 	"time"
 
@@ -106,7 +107,7 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
 
 	// Default status
-	gitHubWebhook.Status.Repository = fmt.Sprintf("%s/%s", gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name)
+	gitHubWebhook.Status.Repository = path.Join(gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name)
 	gitHubWebhook.Status.FailureMessage = nil
 	gitHubWebhook.Status.Ready = false
 	gitHubWebhook.Status.Conditions = setCondition(gitHubWebhook.Status.Conditions, v1alpha1.ReadyGitHubWebhookConditionType, v1.ConditionUnknown, "ReconciliationStarted", "")
