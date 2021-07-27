@@ -344,8 +344,8 @@ outer:
 		editWebhook = true
 		log.Info("Insecure SSL needs to be edited")
 	}
-	// Check update to secret. The webhook secret is always returned as `********` so we make sure it
-	// is always set since we use this hook resource for making edits
+	// Check update to secret. The webhook secret is returned as `********` so we make sure it is
+	// always set in case we need to make an edit
 	hook.Config["secret"] = webhookSecret
 	if _, ok := hook.Config["secret"]; ok {
 		if secret, ok := hook.Config["secret"].(string); ok {
