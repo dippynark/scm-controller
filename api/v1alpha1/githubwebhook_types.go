@@ -80,6 +80,8 @@ type GitHubWebhookStatus struct {
 	// consumption
 	// +optional
 	FailureMessage *string `json:"failureMessage,omitempty"`
+
+	Repository string `json:"repository"`
 }
 
 // GitHubWebhookPhase describes the state of a KubernetesMachine
@@ -107,9 +109,9 @@ func (g *GitHubWebhookStatus) SetFailureMessage(v error) {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="id",type="string",JSONPath=".spec.id",description="GitHub ID"
-// +kubebuilder:printcolumn:name="phase",type="string",JSONPath=".status.phase",description="GitHubWebhook phase"
+// +kubebuilder:printcolumn:name="repository",type="string",JSONPath=".status.repository",description="Repository"
 // +kubebuilder:printcolumn:name="payload url",type="string",JSONPath=".spec.payloadURL",description="Payload URL"
+// +kubebuilder:printcolumn:name="phase",type="string",JSONPath=".status.phase",description="GitHubWebhook phase"
 // +kubebuilder:printcolumn:name="age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // GitHubWebhook is the Schema for the githubwebhooks API
