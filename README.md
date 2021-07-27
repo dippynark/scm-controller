@@ -3,12 +3,14 @@
 SCM Controller allows management of SCM resources using Kubernetes. Currently only GitHubWebhooks
 are supported.
 
-## Install
+## Create Webhook
 
-Create personal access token with `admin:repo_hook` scope:
+> GitHub Enterprise is currently not supported
+
+Create a GitHub personal access token with `admin:repo_hook` scope:
 [https://github.com/settings/tokens/new?scopes=write:repo_hook](https://github.com/settings/tokens/new?scopes=admin:repo_hook). Admin is needed for webhook deletion.
 
-Create Kubernetes Secret containing the personal access token and deploy the controller.
+Create a Kubernetes Secret containing the personal access token:
 
 ```sh
 kubectl create namespace scm-controller-system \
@@ -24,12 +26,45 @@ metadata:
 stringData:
   token: ghp_EXAMPLE123
 EOF
+```
+
+Deploy the controller:
+
+```sh
 make deploy
 ```
 
-## Example
+Create GitHubWebhook with secret:
 
-An example can be found [here](config/samples/scm_v1alpha1_githubwebhook.yaml).
+```sh
+kubectl apply -f - <<EOF
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-webhook
+stringData:
+  secret: c2VjcmV0
+---
+apiVersion: scm.dippynark.co.uk/v1alpha1
+kind: GitHubWebhook
+metadata:
+  name: test
+spec:
+  repository:
+    owner: example
+    name: application
+  payloadURL: https://test.example.com
+  # Supports json or form
+  contentType: json
+  secret:
+    name: github-webhook
+    key: secret
+  insecureSSL: false
+  events:
+  - "*"
+  active: true
+EOF
+```
 
 ## Adoption
 
@@ -40,5 +75,3 @@ raise an error if there is a collision.
 ## TODO
 
 - Add conditions (e.g. readiness) and add as columns
-- Raise detailed event if a matching webhook already exists (and other similar errors)
-- If ID is set there is no need to list all hooks, just get the specified one by ID
