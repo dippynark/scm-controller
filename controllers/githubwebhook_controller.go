@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/go-logr/logr"
@@ -331,7 +332,11 @@ outer:
 	// Check update to insecure SSL
 	if _, ok := hook.Config["insecure_ssl"]; ok {
 		if insecureSSL, ok := hook.Config["insecure_ssl"].(string); ok {
-			if gitHubWebhook.Spec.InsecureSSL != stringToBool(insecureSSL) {
+			insecureSSLInteger, err := strconv.Atoi(insecureSSL)
+			if err != nil {
+				return false, hook, errors.Wrap(err, "failed to convert insecure_ssl string to an integer")
+			}
+			if gitHubWebhook.Spec.InsecureSSL != intToBool(insecureSSLInteger) {
 				hook.Config["insecure_ssl"] = boolToInt(gitHubWebhook.Spec.InsecureSSL)
 				editWebhook = true
 				log.Info("Insecure SSL needs to be edited")
@@ -384,8 +389,8 @@ func stringInSlice(s string, list []string) bool {
 	return false
 }
 
-func stringToBool(s string) bool {
-	return s != "0"
+func intToBool(s int) bool {
+	return s != 0
 }
 
 func boolToInt(b bool) int {
