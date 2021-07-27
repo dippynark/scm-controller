@@ -389,8 +389,8 @@ func stringInSlice(s string, list []string) bool {
 	return false
 }
 
-func intToBool(s int) bool {
-	return s != 0
+func intToBool(i int) bool {
+	return i != 0
 }
 
 func boolToInt(b bool) int {
