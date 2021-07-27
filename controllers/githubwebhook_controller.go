@@ -28,6 +28,7 @@ import (
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -83,7 +84,7 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	}
 	// Always attempt to patch the GitHubWebhook object and status after each reconciliation
 	defer func() {
-		// r.reconcilePhase(gitHubWebhook)
+		reconcilePhase(gitHubWebhook)
 
 		if err := patchHelper.Patch(ctx, gitHubWebhook); err != nil {
 			log.Error(err, "failed to patch GitHubWebhook")
@@ -102,29 +103,11 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return r.reconcileNormal(ctx, log, gitHubWebhook)
 }
 
-func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
-
-	if gitHubWebhook.Spec.ID != nil {
-		resp, err := r.GitHubClient.Repositories.DeleteHook(ctx,
-			gitHubWebhook.Spec.Repository.Owner,
-			gitHubWebhook.Spec.Repository.Name,
-			*gitHubWebhook.Spec.ID)
-		if err != nil {
-			// We do not care if the webhook is not found
-			if resp.StatusCode != 404 {
-				r.Recorder.Event(gitHubWebhook, "Warning", "DeleteFailed", err.Error())
-				return ctrl.Result{}, err
-			}
-		}
-		log.Info("GitHub webhook successfully deleted!")
-	}
-
-	controllerutil.RemoveFinalizer(gitHubWebhook, v1alpha1.GitHubWebhookFinalizer)
-
-	return ctrl.Result{}, nil
-}
-
 func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
+
+	// Set readiness and conditions
+	gitHubWebhook.Status.Ready = false
+	gitHubWebhook.Status.Conditions = setCondition(gitHubWebhook.Status.Conditions, v1alpha1.ReadyGitHubWebhookConditionType, v1.ConditionUnknown, "ReconciliationStarted", "")
 
 	// Add finalizer
 	controllerutil.AddFinalizer(gitHubWebhook, v1alpha1.GitHubWebhookFinalizer)
@@ -250,12 +233,52 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 		log.Info("GitHub webhook successfully edited!")
 	}
 
+	// Set readiness and condtions
+	gitHubWebhook.Status.Ready = true
+	gitHubWebhook.Status.Conditions = setCondition(gitHubWebhook.Status.Conditions, v1alpha1.ReadyGitHubWebhookConditionType, v1.ConditionTrue, "ReconciliationSucceeded", "")
+
 	if gitHubWebhook.Spec.Secret != nil {
 		// We reconcile regularly if a secret is referenced to ensure external drift is reconciled
 		return reconcile.Result{RequeueAfter: gitHubWebhookSecretRequeuePeriod}, nil
 	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
+
+	if gitHubWebhook.Spec.ID != nil {
+		resp, err := r.GitHubClient.Repositories.DeleteHook(ctx,
+			gitHubWebhook.Spec.Repository.Owner,
+			gitHubWebhook.Spec.Repository.Name,
+			*gitHubWebhook.Spec.ID)
+		if err != nil {
+			// We do not care if the webhook is not found
+			if resp.StatusCode != 404 {
+				r.Recorder.Event(gitHubWebhook, "Warning", "DeleteFailed", err.Error())
+				return ctrl.Result{}, err
+			}
+		}
+		log.Info("GitHub webhook successfully deleted!")
+	}
+
+	controllerutil.RemoveFinalizer(gitHubWebhook, v1alpha1.GitHubWebhookFinalizer)
+
+	return ctrl.Result{}, nil
+}
+
+func reconcilePhase(gitHubWebhook *v1alpha1.GitHubWebhook) {
+	if gitHubWebhook.Spec.ID == nil || !gitHubWebhook.Status.Ready {
+		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseCreating
+	}
+
+	if gitHubWebhook.Spec.ID != nil && gitHubWebhook.Status.Ready {
+		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseReady
+	}
+
+	if !gitHubWebhook.DeletionTimestamp.IsZero() {
+		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseDeleting
+	}
 }
 
 func gitHubHookNeedsEdit(log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook, hook *github.Hook, webhookSecret string) (bool, *github.Hook, error) {
@@ -405,4 +428,35 @@ func (r *GitHubWebhookReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&scmv1alpha1.GitHubWebhook{}).
 		Complete(r)
+}
+
+// setCondition appends or updates an existing GitHubWebhook condition of the given type with the
+// given status value. Note that this function will not append to the conditions list if the new
+// condition's status is false (because going from nothing to false is meaningless); it can,
+// however, update the status condition to false
+func setCondition(list []metav1.Condition, conditionType v1alpha1.GitHubWebhookConditionType, status v1.ConditionStatus, reason, message string) []metav1.Condition {
+	for i := range list {
+		if list[i].Type == string(conditionType) {
+			list[i].Status = status
+			list[i].LastTransitionTime = metav1.Now()
+			list[i].Reason = reason
+			list[i].Message = message
+			return list
+		}
+	}
+	// A condition with that type doesn't exist in the list.
+	if status != v1.ConditionFalse {
+		return append(list, *newCondition(conditionType, status, reason, message))
+	}
+	return list
+}
+
+func newCondition(conditionType v1alpha1.GitHubWebhookConditionType, status v1.ConditionStatus, reason, message string) *metav1.Condition {
+	return &metav1.Condition{
+		Type:               string(conditionType),
+		Status:             status,
+		LastTransitionTime: metav1.Now(),
+		Reason:             reason,
+		Message:            message,
+	}
 }

@@ -61,10 +61,43 @@ type Repository struct {
 type GitHubWebhookStatus struct {
 	LastObserveredUpdateTime *metav1.Time `json:"lastObservedUpdateTime,omitempty"`
 	LastObservedSecretHash   *string      `json:"lastObservedSecretHash,omitempty"`
+
+	// +optional
+	// +patchMergeKey=type
+	// +patchStrategy=merge
+	Conditions []metav1.Condition `json:"conditions,omitempty" patchStrategy:"merge" patchMergeKey:"type"`
+
+	// Phase represents the current phase of GitHubWebhookPhase actuation
+	// +optional
+	Phase GitHubWebhookPhase `json:"phase,omitempty"`
+
+	// Ready indicates when the GitHubWebhook is ready
+	Ready bool `json:"ready,omitempty"`
 }
+
+// GitHubWebhookPhase describes the state of a KubernetesMachine
+type GitHubWebhookPhase string
+
+// These are the valid phases of GitHubWebhook
+const (
+	GitHubWebhookPhaseCreating GitHubWebhookPhase = "Creating"
+	GitHubWebhookPhaseReady    GitHubWebhookPhase = "Ready"
+	GitHubWebhookPhaseDeleting GitHubWebhookPhase = "Deleting"
+	GitHubWebhookPhaseFailed   GitHubWebhookPhase = "Failed"
+)
+
+type GitHubWebhookConditionType string
+
+const (
+	ReadyGitHubWebhookConditionType GitHubWebhookConditionType = "Ready"
+)
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="id",type="string",JSONPath=".spec.id",description="GitHub ID"
+// +kubebuilder:printcolumn:name="phase",type="string",JSONPath=".status.phase",description="GitHubWebhook phase"
+// +kubebuilder:printcolumn:name="payload url",type="string",JSONPath=".spec.payloadURL",description="Payload URL"
+// +kubebuilder:printcolumn:name="age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // GitHubWebhook is the Schema for the githubwebhooks API
 type GitHubWebhook struct {
