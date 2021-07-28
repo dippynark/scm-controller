@@ -1,4 +1,4 @@
-# scm-controller
+# SCM Controller
 
 SCM Controller allows management of SCM resources using Kubernetes. Currently only GitHubWebhooks
 are supported.
