@@ -117,7 +117,8 @@ func (g *GitHubWebhookStatus) SetFailureMessage(v error) {
 //+kubebuilder:subresource:status
 // +kubebuilder:printcolumn:name="repository",type="string",JSONPath=".status.repository",description="Repository"
 // +kubebuilder:printcolumn:name="payload url",type="string",JSONPath=".spec.payloadURL",description="Payload URL"
-// +kubebuilder:printcolumn:name="phase",type="string",JSONPath=".status.phase",description="GitHubWebhook phase"
+// +kubebuilder:printcolumn:name="phase",type="string",JSONPath=".status.phase",description="Phase"
+// +kubebuilder:printcolumn:name="active",type="string",JSONPath=".spec.active",description="Active"
 // +kubebuilder:printcolumn:name="age",type="date",JSONPath=".metadata.creationTimestamp"
 
 // GitHubWebhook is the Schema for the githubwebhooks API

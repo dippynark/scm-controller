@@ -25,9 +25,13 @@ spec:
       jsonPath: .spec.payloadURL
       name: payload url
       type: string
-    - description: GitHubWebhook phase
+    - description: Phase
       jsonPath: .status.phase
       name: phase
+      type: string
+    - description: Active
+      jsonPath: .spec.active
+      name: active
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: age
