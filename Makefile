@@ -58,7 +58,7 @@ test: manifests generate fmt vet ## Run tests.
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	CGO_ENABLED=0 go build -o bin/manager main.go
+	CGO_ENABLED=0 go build -tags netgo -o bin/manager main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
