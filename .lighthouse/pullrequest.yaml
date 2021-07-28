@@ -55,7 +55,7 @@ spec:
           image: dippynark/kfmt-build:v1.1.0
           command:
           - make
-          - test
+          # - test
           - build
           workingDir: /workspace
           volumeMounts:
