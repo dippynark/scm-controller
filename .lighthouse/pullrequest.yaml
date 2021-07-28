@@ -55,8 +55,8 @@ spec:
           image: dippynark/kfmt-build:v1.1.0
           command:
           - make
-          - build
           - test
+          - build
           workingDir: /workspace
           volumeMounts:
           - name: go-pkg-mod
