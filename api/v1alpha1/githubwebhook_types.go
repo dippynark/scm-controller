@@ -31,11 +31,13 @@ const (
 // GitHubWebhookSpec defines the desired state of GitHubWebhook
 type GitHubWebhookSpec struct {
 	// ID holds the webhook's GitHub ID. The ID is populated when the webhook is created.
+	// +kubebuilder:validation:Minimum=1
 	ID         *int64     `json:"id,omitempty"`
 	Repository Repository `json:"repository,omitempty"`
 	// URL to send webhook payload
+	// +kubebuilder:validation:Pattern="^http://|^https://"
 	PayloadURL string `json:"payloadURL,omitempty"`
-	// Enum: application/x-www-form-urlencoded (default), application/json
+	// +kubebuilder:validation:Enum=json;form
 	// +optional
 	ContentType string `json:"contentType,omitempty"`
 	// GitHub webhook secret
@@ -45,7 +47,6 @@ type GitHubWebhookSpec struct {
 	// Active refers to status of the webhook for event deliveries.
 	// https://developer.github.com/webhooks/creating/#active
 	// +optional
-	// +optional
 	InsecureSSL bool `json:"insecureSSL,omitempty"`
 	// Events refers to Github events to subscribe to
 	// +optional
@@ -54,8 +55,10 @@ type GitHubWebhookSpec struct {
 }
 
 type Repository struct {
+	// +kubebuilder:validation:MinLength=1
 	Owner string `json:"owner,omitempty"`
-	Name  string `json:"name,omitempty"`
+	// +kubebuilder:validation:MinLength=1
+	Name string `json:"name,omitempty"`
 }
 
 // GitHubWebhookStatus defines the observed state of GitHubWebhook
@@ -81,7 +84,10 @@ type GitHubWebhookStatus struct {
 	// +optional
 	FailureMessage *string `json:"failureMessage,omitempty"`
 
-	Repository string `json:"repository"`
+	// Repository is set to .spec.repository.owner/.spec.repository.name so that it can be output as a
+	// printer column
+	// +optional
+	Repository string `json:"repository,omitempty"`
 }
 
 // GitHubWebhookPhase describes the state of a KubernetesMachine

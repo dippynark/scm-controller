@@ -3,6 +3,14 @@
 SCM Controller allows management of SCM resources using Kubernetes. Currently only GitHubWebhooks
 are supported.
 
+[Kubebuilder](https://github.com/kubernetes-sigs/kubebuilder) was used to scaffold this project:
+
+```sh
+kubebuilder init --domain dippynark.co.uk
+kubebuilder create api --group scm --version v1alpha1 --kind GitHubWebhook
+kubebuilder create webhook --group scm --version v1alpha1 --kind GitHubWebhook --defaulting --programmatic-validation
+```
+
 ## Create GitHubWebhook
 
 > GitHub Enterprise is currently not supported

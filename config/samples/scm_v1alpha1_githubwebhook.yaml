@@ -14,16 +14,12 @@ spec:
   repository:
     owner: dippynark
     name: kfmt
-  # Cannot be empty
   payloadURL: https://test.lukeaddison.co.uk
-  # Can be anything, but verify it's `json` or `form`
-  contentType: form
+  contentType: json
   secret:
     name: github-webhook
     key: secret
   insecureSSL: false
-  # GitHub API allows duplicates so we do too
-  # Check values come from whitelist though
   events:
   - "*"
   active: true

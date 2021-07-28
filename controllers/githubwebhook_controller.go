@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/sha256"
 	"fmt"
-	"path"
 	"strconv"
 	"time"
 
@@ -41,7 +40,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	"github.com/dippynark/scm-controller/api/v1alpha1"
 	scmv1alpha1 "github.com/dippynark/scm-controller/api/v1alpha1"
 )
 
@@ -70,7 +68,7 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log := log.Log.WithValues(namespaceLogName, req.Namespace, gitHubWebhookLogName, req.Name)
 
 	// Fetch the GitHubWebhook instance
-	gitHubWebhook := &v1alpha1.GitHubWebhook{}
+	gitHubWebhook := &scmv1alpha1.GitHubWebhook{}
 	if err := r.Client.Get(ctx, req.NamespacedName, gitHubWebhook); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return ctrl.Result{}, nil
@@ -104,16 +102,16 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	return r.reconcileNormal(ctx, log, gitHubWebhook)
 }
 
-func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
+func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.Logger, gitHubWebhook *scmv1alpha1.GitHubWebhook) (ctrl.Result, error) {
 
 	// Default status
-	gitHubWebhook.Status.Repository = path.Join(gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name)
+	gitHubWebhook.Status.Repository = fmt.Sprintf("%s/%s", gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name)
 	gitHubWebhook.Status.FailureMessage = nil
 	gitHubWebhook.Status.Ready = false
-	gitHubWebhook.Status.Conditions = setCondition(gitHubWebhook.Status.Conditions, v1alpha1.ReadyGitHubWebhookConditionType, v1.ConditionUnknown, "ReconciliationStarted", "")
+	gitHubWebhook.Status.Conditions = setCondition(gitHubWebhook.Status.Conditions, scmv1alpha1.ReadyGitHubWebhookConditionType, v1.ConditionUnknown, "ReconciliationStarted", "")
 
 	// Add finalizer
-	controllerutil.AddFinalizer(gitHubWebhook, v1alpha1.GitHubWebhookFinalizer)
+	controllerutil.AddFinalizer(gitHubWebhook, scmv1alpha1.GitHubWebhookFinalizer)
 
 	// Retrieve webhook secret
 	webhookSecret := ""
@@ -169,11 +167,8 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 
 	// If we can not find an existing webhook then create a new one
 	if hook == nil {
+		// Defaulting webhook should ensure Events are not nil
 		events := gitHubWebhook.Spec.Events
-		// TODO: use defaulting webhook
-		if gitHubWebhook.Spec.Events == nil {
-			events = []string{"*"}
-		}
 		hook = &github.Hook{
 			Active: &gitHubWebhook.Spec.Active,
 			Events: events,
@@ -249,7 +244,7 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 
 	// Set readiness and condtions
 	gitHubWebhook.Status.Ready = true
-	gitHubWebhook.Status.Conditions = setCondition(gitHubWebhook.Status.Conditions, v1alpha1.ReadyGitHubWebhookConditionType, v1.ConditionTrue, "ReconciliationSucceeded", "")
+	gitHubWebhook.Status.Conditions = setCondition(gitHubWebhook.Status.Conditions, scmv1alpha1.ReadyGitHubWebhookConditionType, v1.ConditionTrue, "ReconciliationSucceeded", "")
 
 	if gitHubWebhook.Spec.Secret != nil {
 		// We reconcile regularly if a secret is referenced to ensure external drift is reconciled
@@ -259,7 +254,7 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 	return ctrl.Result{}, nil
 }
 
-func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook) (ctrl.Result, error) {
+func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.Logger, gitHubWebhook *scmv1alpha1.GitHubWebhook) (ctrl.Result, error) {
 
 	if gitHubWebhook.Spec.ID != nil {
 		resp, err := r.GitHubClient.Repositories.DeleteHook(ctx,
@@ -277,34 +272,34 @@ func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.
 		log.Info("GitHub webhook successfully deleted!")
 	}
 
-	controllerutil.RemoveFinalizer(gitHubWebhook, v1alpha1.GitHubWebhookFinalizer)
+	controllerutil.RemoveFinalizer(gitHubWebhook, scmv1alpha1.GitHubWebhookFinalizer)
 
 	return ctrl.Result{}, nil
 }
 
-func reconcilePhase(gitHubWebhook *v1alpha1.GitHubWebhook) {
+func reconcilePhase(gitHubWebhook *scmv1alpha1.GitHubWebhook) {
 	if gitHubWebhook.Spec.ID == nil {
-		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseCreating
+		gitHubWebhook.Status.Phase = scmv1alpha1.GitHubWebhookPhaseCreating
 	}
 
 	if gitHubWebhook.Spec.ID != nil {
-		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseEditing
+		gitHubWebhook.Status.Phase = scmv1alpha1.GitHubWebhookPhaseEditing
 	}
 
 	if gitHubWebhook.Spec.ID != nil && gitHubWebhook.Status.Ready {
-		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseReady
+		gitHubWebhook.Status.Phase = scmv1alpha1.GitHubWebhookPhaseReady
 	}
 
 	if !gitHubWebhook.DeletionTimestamp.IsZero() {
-		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseDeleting
+		gitHubWebhook.Status.Phase = scmv1alpha1.GitHubWebhookPhaseDeleting
 	}
 
 	if gitHubWebhook.Status.FailureMessage != nil {
-		gitHubWebhook.Status.Phase = v1alpha1.GitHubWebhookPhaseFailed
+		gitHubWebhook.Status.Phase = scmv1alpha1.GitHubWebhookPhaseFailed
 	}
 }
 
-func gitHubHookNeedsEdit(log logr.Logger, gitHubWebhook *v1alpha1.GitHubWebhook, hook *github.Hook, webhookSecret string) (bool, *github.Hook, error) {
+func gitHubHookNeedsEdit(log logr.Logger, gitHubWebhook *scmv1alpha1.GitHubWebhook, hook *github.Hook, webhookSecret string) (bool, *github.Hook, error) {
 	editWebhook := false
 
 	// Record the last update time to determine whether to overwrite external webhook secret
@@ -457,7 +452,7 @@ func (r *GitHubWebhookReconciler) SetupWithManager(mgr ctrl.Manager) error {
 // given status value. Note that this function will not append to the conditions list if the new
 // condition's status is false (because going from nothing to false is meaningless); it can,
 // however, update the status condition to false
-func setCondition(list []metav1.Condition, conditionType v1alpha1.GitHubWebhookConditionType, status v1.ConditionStatus, reason, message string) []metav1.Condition {
+func setCondition(list []metav1.Condition, conditionType scmv1alpha1.GitHubWebhookConditionType, status v1.ConditionStatus, reason, message string) []metav1.Condition {
 	for i := range list {
 		if list[i].Type == string(conditionType) {
 			list[i].Status = status
@@ -474,7 +469,7 @@ func setCondition(list []metav1.Condition, conditionType v1alpha1.GitHubWebhookC
 	return list
 }
 
-func newCondition(conditionType v1alpha1.GitHubWebhookConditionType, status v1.ConditionStatus, reason, message string) *metav1.Condition {
+func newCondition(conditionType scmv1alpha1.GitHubWebhookConditionType, status v1.ConditionStatus, reason, message string) *metav1.Condition {
 	return &metav1.Condition{
 		Type:               string(conditionType),
 		Status:             status,
