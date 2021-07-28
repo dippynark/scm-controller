@@ -90,6 +90,8 @@ spec:
           - make
           # - test
           - build
+          - -o
+          - generate
           workingDir: /workspace
           volumeMounts:
           - name: go-pkg-mod
