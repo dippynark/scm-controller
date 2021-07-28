@@ -15,11 +15,6 @@ spec:
     owner: dippynark
     name: kfmt
   payloadURL: https://test.lukeaddison.co.uk
-  contentType: json
   secret:
     name: github-webhook
     key: secret
-  insecureSSL: false
-  events:
-  - "*"
-  active: true

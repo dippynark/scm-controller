@@ -53,8 +53,10 @@ spec:
             description: GitHubWebhookSpec defines the desired state of GitHubWebhook
             properties:
               active:
+                default: true
                 type: boolean
               contentType:
+                default: json
                 enum:
                 - json
                 - form
@@ -71,6 +73,7 @@ spec:
                 minimum: 1
                 type: integer
               insecureSSL:
+                default: false
                 description: Active refers to status of the webhook for event deliveries.
                   https://developer.github.com/webhooks/creating/#active
                 type: boolean

@@ -38,7 +38,7 @@ type GitHubWebhookSpec struct {
 	// +kubebuilder:validation:Pattern="^http://|^https://"
 	PayloadURL string `json:"payloadURL,omitempty"`
 	// +kubebuilder:validation:Enum=json;form
-	// +optional
+	// +kubebuilder:default=json
 	ContentType string `json:"contentType,omitempty"`
 	// GitHub webhook secret
 	// https://developer.github.com/webhooks/securing/
@@ -46,12 +46,12 @@ type GitHubWebhookSpec struct {
 	Secret *corev1.SecretKeySelector `json:"secret,omitempty"`
 	// Active refers to status of the webhook for event deliveries.
 	// https://developer.github.com/webhooks/creating/#active
-	// +optional
+	// +kubebuilder:default=false
 	InsecureSSL bool `json:"insecureSSL,omitempty"`
 	// Events refers to Github events to subscribe to
-	// +optional
 	Events []string `json:"events,omitempty"`
-	Active bool     `json:"active,omitempty"`
+	// +kubebuilder:default=true
+	Active bool `json:"active,omitempty"`
 }
 
 type Repository struct {
