@@ -38,7 +38,7 @@ spec:
           - -ce
           - |
             TAG="$(inputs.params.PULL_BASE_REF)"
-            if [ "$TAG" = "master" ]; then
+            if [ "$TAG" = "main" ] || [ "$TAG" = "master" ]; then
               TAG="latest"
             fi
             echo -n $TAG > $(results.tag.path)
