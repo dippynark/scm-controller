@@ -63,7 +63,6 @@ Admin is needed for webhook deletion.
         owner: example
         name: application
       payloadURL: https://test.example.com
-      # Supports json or form
       contentType: json
       secret:
         name: github-webhook
