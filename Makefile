@@ -64,7 +64,7 @@ run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 release:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o manager main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags netgo -o bin/manager main.go
 
 docker-build: release test ## Build docker image with the manager.
 	docker build -t ${IMG} .
