@@ -58,6 +58,10 @@ spec:
           - build
           - -o
           - generate
+          - -o
+          - fmt
+          - -o
+          - vet
           workingDir: /workspace
           volumeMounts:
           - name: go-pkg-mod
