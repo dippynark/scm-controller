@@ -42,7 +42,7 @@ spec:
               TAG="latest"
             fi
             echo -n $TAG > $(results.tag.path)
-    - name: clone-build-test-push
+    - name: clone-release-push
       params:
       - name: REPO_URL
         value: $(params.REPO_URL)
@@ -107,9 +107,9 @@ spec:
         volumes:
         - name: workspace
           emptyDir: {}
-        # - name: go-pkg-mod
-        #   hostPath:
-        #     path: /mnt/ssd/data/go/pkg/mod
+        - name: go-pkg-mod
+          hostPath:
+            path: /mnt/ssd/data/go/pkg/mod
         - name: kaniko-secret
           secret:
             secretName: tekton-container-registry-auth
