@@ -85,7 +85,7 @@ spec:
             echo checked out PULL_BASE_REF: $(inputs.params.PULL_BASE_REF) to dir: `pwd`
           workingDir: /workspace
         - name: build-test-release
-          image: dippynark/kfmt-build:v1.3.0
+          image: dippynark/kfmt-build:v1.4.0
           command:
           - make
           - release
