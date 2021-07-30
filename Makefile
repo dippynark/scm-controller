@@ -63,7 +63,7 @@ build: generate fmt vet ## Build manager binary.
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
-release:
+release: kustomize
 	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags netgo -o scm-controller-linux-amd64
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default > scm-controller.yaml
