@@ -1,6 +1,6 @@
 FROM gcr.io/distroless/static:nonroot
-WORKDIR /
-COPY bin/manager .
+
+COPY scm-controller-linux-amd64 /scm-controller
 USER 65532:65532
 
-ENTRYPOINT ["/manager"]
+ENTRYPOINT ["/scm-controller"]

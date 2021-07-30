@@ -23,3 +23,6 @@ testbin/*
 *.swp
 *.swo
 *~
+
+/scm-controller-linux-amd64
+/scm-controller.yaml

@@ -58,15 +58,17 @@ test: manifests generate fmt vet ## Run tests.
 ##@ Build
 
 build: generate fmt vet ## Build manager binary.
-	CGO_ENABLED=0 go build -tags netgo -o bin/manager main.go
+	CGO_ENABLED=0 go build -tags netgo -o scm-controller-linux-amd64
 
 run: manifests generate fmt vet ## Run a controller from your host.
 	go run ./main.go
 
 release:
-	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags netgo -o bin/manager main.go
+	CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags netgo -o scm-controller-linux-amd64
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default > scm-controller.yaml
 
-docker-build: release test ## Build docker image with the manager.
+docker-build: release ## Build docker image with the manager.
 	docker build -t ${IMG} .
 
 docker-push: ## Push docker image with the manager.
@@ -83,7 +85,6 @@ uninstall: manifests kustomize ## Uninstall CRDs from the K8s cluster specified 
 deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in ~/.kube/config.
 	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
 	$(KUSTOMIZE) build config/default | kubectl apply -f -
-	kubectl delete pod --all -n scm-controller-system
 
 undeploy: ## Undeploy controller from the K8s cluster specified in ~/.kube/config.
 	$(KUSTOMIZE) build config/default | kubectl delete -f -
