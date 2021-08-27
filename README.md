@@ -1,6 +1,6 @@
 # SCM Controller
 
-SCM Controller allows management of SCM resources using Kubernetes. Currently only GitHubWebhooks
+SCM Controller allows management of Source Control Management resources using Kubernetes. Currently only GitHubWebhooks
 are supported.
 
 [Kubebuilder](https://github.com/kubernetes-sigs/kubebuilder) was used to scaffold this project:
