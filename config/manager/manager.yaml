@@ -42,6 +42,7 @@ spec:
             secretKeyRef:
               name: github
               key: baseURL
+              optional: true
         securityContext:
           allowPrivilegeEscalation: false
         livenessProbe:

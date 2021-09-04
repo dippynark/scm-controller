@@ -111,6 +111,9 @@ spec:
                 required:
                 - key
                 type: object
+              suspend:
+                description: Suspend skips reconciliation
+                type: boolean
             type: object
           status:
             description: GitHubWebhookStatus defines the observed state of GitHubWebhook
