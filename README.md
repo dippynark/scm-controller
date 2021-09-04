@@ -13,8 +13,6 @@ kubebuilder create webhook --group scm --version v1alpha1 --kind GitHubWebhook -
 
 ## Create GitHubWebhook
 
-> GitHub Enterprise is currently not supported
-
 1. Create a GitHub personal access token with `admin:repo_hook` scope:
 [https://github.com/settings/tokens/new?scopes=write:repo_hook](https://github.com/settings/tokens/new?scopes=admin:repo_hook).
 Admin is needed for webhook deletion.
