@@ -44,9 +44,9 @@ import (
 )
 
 const (
-	namespaceLogName                 = "namespace"
-	gitHubWebhookLogName             = "githubwebhook"
-	gitHubWebhookSecretRequeuePeriod = 120 * time.Second
+	namespaceLogName           = "namespace"
+	gitHubWebhookLogName       = "githubwebhook"
+	gitHubWebhookRequeuePeriod = 600 * time.Second
 )
 
 // GitHubWebhookReconciler reconciles a GitHubWebhook object
@@ -250,12 +250,8 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 	gitHubWebhook.Status.Ready = true
 	gitHubWebhook.Status.Conditions = setCondition(gitHubWebhook.Status.Conditions, scmv1alpha1.ReadyGitHubWebhookConditionType, v1.ConditionTrue, "ReconciliationSucceeded", "")
 
-	if gitHubWebhook.Spec.Secret != nil {
-		// We reconcile regularly if a secret is referenced to ensure external drift is reconciled
-		return reconcile.Result{RequeueAfter: gitHubWebhookSecretRequeuePeriod}, nil
-	}
-
-	return ctrl.Result{}, nil
+	// Requeue to ensure external drift is reconciled
+	return reconcile.Result{RequeueAfter: gitHubWebhookRequeuePeriod}, nil
 }
 
 func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.Logger, gitHubWebhook *scmv1alpha1.GitHubWebhook) (ctrl.Result, error) {
