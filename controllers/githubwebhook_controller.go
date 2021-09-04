@@ -104,6 +104,10 @@ func (r *GitHubWebhookReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 
 func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.Logger, gitHubWebhook *scmv1alpha1.GitHubWebhook) (ctrl.Result, error) {
 
+	if gitHubWebhook.Spec.Suspend {
+		return ctrl.Result{}, nil
+	}
+
 	// Default status
 	gitHubWebhook.Status.Repository = fmt.Sprintf("%s/%s", gitHubWebhook.Spec.Repository.Owner, gitHubWebhook.Spec.Repository.Name)
 	gitHubWebhook.Status.FailureMessage = nil
@@ -256,7 +260,7 @@ func (r *GitHubWebhookReconciler) reconcileNormal(ctx context.Context, log logr.
 
 func (r *GitHubWebhookReconciler) reconcileDelete(ctx context.Context, log logr.Logger, gitHubWebhook *scmv1alpha1.GitHubWebhook) (ctrl.Result, error) {
 
-	if gitHubWebhook.Spec.ID != nil {
+	if !gitHubWebhook.Spec.Suspend && gitHubWebhook.Spec.ID != nil {
 		resp, err := r.GitHubClient.Repositories.DeleteHook(ctx,
 			gitHubWebhook.Spec.Repository.Owner,
 			gitHubWebhook.Spec.Repository.Name,

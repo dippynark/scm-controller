@@ -45,7 +45,8 @@ var (
 )
 
 const (
-	githubTokenEnvVar = "GITHUB_TOKEN"
+	gitHubTokenEnvVar   = "GITHUB_TOKEN"
+	gitHubBaseURLEnvVar = "GITHUB_BASE_URL"
 )
 
 func init() {
@@ -87,12 +88,21 @@ func main() {
 
 	// Setup GitHub client
 	// https://github.com/google/go-github#authentication
-	gitHubToken := os.Getenv(githubTokenEnvVar)
+	gitHubToken := os.Getenv(gitHubTokenEnvVar)
 	ts := oauth2.StaticTokenSource(
 		&oauth2.Token{AccessToken: gitHubToken},
 	)
 	tc := oauth2.NewClient(context.TODO(), ts)
-	gitHubClient := github.NewClient(tc)
+	var gitHubClient *github.Client
+	gitHubBaseURL := os.Getenv(gitHubBaseURLEnvVar)
+	if gitHubBaseURL != "" {
+		// We do not use the upload URL so we just set it to the same as the base URL so we can use the
+		// following helper function
+		gitHubUploadURL := gitHubBaseURL
+		gitHubClient, err = github.NewEnterpriseClient(gitHubBaseURL, gitHubUploadURL, tc)
+	} else {
+		gitHubClient = github.NewClient(tc)
+	}
 
 	if err = (&controllers.GitHubWebhookReconciler{
 		Client:       mgr.GetClient(),

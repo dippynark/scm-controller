@@ -37,6 +37,11 @@ spec:
             secretKeyRef:
               name: github
               key: token
+        - name: GITHUB_BASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: github
+              key: baseURL
         securityContext:
           allowPrivilegeEscalation: false
         livenessProbe:
