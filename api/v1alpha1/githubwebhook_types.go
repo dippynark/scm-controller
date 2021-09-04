@@ -52,6 +52,9 @@ type GitHubWebhookSpec struct {
 	Events []string `json:"events,omitempty"`
 	// +kubebuilder:default=true
 	Active bool `json:"active,omitempty"`
+	// Suspend skips reconciliation
+	// +optional
+	Suspend bool `json:"suspend,omitempty"`
 }
 
 type Repository struct {
