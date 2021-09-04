@@ -34,6 +34,8 @@ Admin is needed for webhook deletion.
       namespace: scm-controller-system
     stringData:
       token: ghp_EXAMPLE123
+      # For Github Enterprise
+      # baseUrl: https://my.org.com
     EOF
     ```
 
