@@ -46,7 +46,7 @@ import (
 const (
 	namespaceLogName                 = "namespace"
 	gitHubWebhookLogName             = "githubwebhook"
-	gitHubWebhookSecretRequeuePeriod = 60 * time.Second
+	gitHubWebhookSecretRequeuePeriod = 120 * time.Second
 )
 
 // GitHubWebhookReconciler reconciles a GitHubWebhook object
